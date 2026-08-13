@@ -390,24 +390,22 @@ const SYNC_KEY = 'lingyan_sync_timestamp';
 // ================================================================
 // 全局状态
 // ================================================================
-let priceLists = [];
-let currentPriceListId = null;
 let products = [];
 let quantities = new Map();
+let productRemarks = new Map();
+let quotations = [];
 let displayMode = "all";
 let currentShippingCost = 40;
 let searchKeyword = "";
-let quotations = [];
-let editingQuoteId = null;
-let currentLang = 'zh';
-let productRemarks = new Map();
 let searchOrder = [];
 let columnVisibility = {0:true,1:true,2:true,3:true,4:true,5:true,6:true,7:true};
-let isUpdatingKits = false;
+let currentLang = 'zh';
+let editingQuoteId = null;
 let isConnected = false;
 let isSyncing = false;
-let syncQueue = [];
+let isUpdatingKits = false;
 let isSyncRunning = false;
+let syncTimer = null;
 
 // ================================================================
 // DOM 引用
@@ -458,12 +456,7 @@ async function loadProductsFromAirtable() {
 }
 
 async function syncProductsToAirtable(productsData) {
-    // 同时保存价格表信息到 Airtable
-    const priceListInfo = {
-        'PriceListName': priceLists.find(p => p.id === currentPriceListId)?.name || '标准价格表',
-        'PriceListData': JSON.stringify(Array.from(getCurrentPriceMap().entries()).map(([key, val]) => ({key, price: val.price, catno: val.catno})))
-    };
-    
+    // 只同步产品数据，不同步价格表元数据（避免字段不存在错误）
     const records = productsData.map(p => ({
         fields: {
             'Cat. No': p.catno || '',
@@ -472,9 +465,7 @@ async function syncProductsToAirtable(productsData) {
             'Price': p.price || 0,
             'Qty': 0,
             'Subtotal': 0,
-            'Remark': '',
-            'PriceListName': priceListInfo.PriceListName,
-            'PriceListData': priceListInfo.PriceListData
+            'Remark': ''
         }
     }));
     
@@ -499,6 +490,7 @@ async function syncProductsToAirtable(productsData) {
     }
     return allRecords;
 }
+
 // ================================================================
 // 数据持久化
 // ================================================================
@@ -512,13 +504,6 @@ function saveToLocal() {
         displayMode: displayMode,
         columnVisibility: columnVisibility,
         currentLang: currentLang,
-        priceLists: priceLists.map(pl => ({
-            id: pl.id,
-            name: pl.name,
-            nameEn: pl.nameEn || pl.name,
-            priceMap: Array.from(pl.priceMap.entries()).map(([key, val]) => [key, { price: val.price, catno: val.catno }])
-        })),
-        currentPriceListId: currentPriceListId,
         timestamp: Date.now()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -528,110 +513,6 @@ function saveToLocal() {
 function loadFromLocal() {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
-}
-
-// ================================================================
-// 核心数据加载
-// ================================================================
-async function loadData() {
-    loadingOverlay.style.display = 'flex';
-    
-    const localData = loadFromLocal();
-    
-    try {
-        console.log('🔄 尝试从 Airtable 加载数据...');
-        const airtableProducts = await loadProductsFromAirtable();
-        
-        if (airtableProducts && airtableProducts.length > 0) {
-            products = airtableProducts;
-            
-            if (localData) {
-                const oldQuantities = new Map(localData.quantities || []);
-                const oldRemarks = new Map(localData.productRemarks || []);
-                products.forEach(p => {
-                    quantities.set(p.id, oldQuantities.get(p.id) || 0);
-                    productRemarks.set(p.id, oldRemarks.get(p.id) || '');
-                });
-                if (localData.quotations) quotations = localData.quotations;
-                if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
-                if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
-                if (localData.currentLang) currentLang = localData.currentLang;
-                if (localData.priceLists) {
-                    priceLists = localData.priceLists.map(pl => ({
-                        ...pl,
-                        priceMap: new Map(pl.priceMap.map(([key, val]) => [key, { price: val.price, catno: val.catno }]))
-                    }));
-                    currentPriceListId = localData.currentPriceListId || (priceLists.length > 0 ? priceLists[0].id : null);
-                }
-            } else {
-                products.forEach(p => {
-                    quantities.set(p.id, 0);
-                    productRemarks.set(p.id, '');
-                });
-            }
-            
-            isConnected = true;
-            updateSyncStatus(true);
-            console.log(`✅ 从 Airtable 加载了 ${products.length} 个产品`);
-        } else if (localData && localData.products && localData.products.length > 0) {
-            products = localData.products;
-            quantities = new Map(localData.quantities || []);
-            productRemarks = new Map(localData.productRemarks || []);
-            quotations = localData.quotations || [];
-            if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
-            if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
-            if (localData.currentLang) currentLang = localData.currentLang;
-            if (localData.priceLists) {
-                priceLists = localData.priceLists.map(pl => ({
-                    ...pl,
-                    priceMap: new Map(pl.priceMap.map(([key, val]) => [key, { price: val.price, catno: val.catno }]))
-                }));
-                currentPriceListId = localData.currentPriceListId || (priceLists.length > 0 ? priceLists[0].id : null);
-            }
-            isConnected = false;
-            updateSyncStatus(false);
-            console.log(`📦 从本地缓存加载了 ${products.length} 个产品`);
-        } else {
-            initDefaultProducts();
-            isConnected = false;
-            updateSyncStatus(false);
-        }
-    } catch (e) {
-        console.warn('⚠️ Airtable 加载失败:', e.message);
-        
-        if (localData && localData.products && localData.products.length > 0) {
-            products = localData.products;
-            quantities = new Map(localData.quantities || []);
-            productRemarks = new Map(localData.productRemarks || []);
-            quotations = localData.quotations || [];
-            if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
-            if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
-            if (localData.currentLang) currentLang = localData.currentLang;
-            if (localData.priceLists) {
-                priceLists = localData.priceLists.map(pl => ({
-                    ...pl,
-                    priceMap: new Map(pl.priceMap.map(([key, val]) => [key, { price: val.price, catno: val.catno }]))
-                }));
-                currentPriceListId = localData.currentPriceListId || (priceLists.length > 0 ? priceLists[0].id : null);
-            }
-        } else {
-            initDefaultProducts();
-        }
-        isConnected = false;
-        updateSyncStatus(false);
-    }
-    
-    if (priceLists.length === 0) {
-        initDefaultPriceLists();
-    }
-    
-    renderPriceSelect();
-    if (currentPriceListId) {
-        document.getElementById('priceTableSelect').value = currentPriceListId;
-    }
-    renderTable();
-    updateFooter();
-    loadingOverlay.style.display = 'none';
 }
 
 // ================================================================
@@ -722,40 +603,19 @@ function generateCatNo(name, spec) {
     return prefix + '-' + suffix;
 }
 
-function initDefaultPriceLists() {
+function initDefaultProducts() {
     const defMap = new Map();
     PRICE_DATA.forEach(([name, spec, price]) => {
         const key = `${name}|${spec}`;
         const catno = generateCatNo(name, spec);
         defMap.set(key, {price: Math.round(price), catno: catno});
     });
-    priceLists = [
-        { id: "default", name: "标准价格表", nameEn: "Standard", priceMap: defMap }
-    ];
-    currentPriceListId = "default";
-}
-
-function initDefaultProducts() {
-    if (priceLists.length === 0) initDefaultPriceLists();
-    const priceMap = priceLists.find(p => p.id === currentPriceListId)?.priceMap || new Map();
-    products = buildMasterProducts(priceMap);
-    quantities.clear();
-    productRemarks.clear();
-    products.forEach(p => {
-        quantities.set(p.id, 0);
-        productRemarks.set(p.id, '');
-    });
-}
-
-// ================================================================
-// 核心业务函数
-// ================================================================
-function buildMasterProducts(priceMap) {
-    let arr = []; let id=1;
-    if (!priceMap) return arr;
-    for(let key of priceMap.keys()) {
+    
+    let arr = [];
+    let id = 1;
+    for(let key of defMap.keys()) {
         const [name, spec] = key.split('|');
-        const info = priceMap.get(key) || {price:0, catno:''};
+        const info = defMap.get(key) || {price:0, catno:''};
         const displaySpec = calculateTotalSpec(spec);
         arr.push({ 
             id: id++, 
@@ -806,54 +666,92 @@ function calculateTotalSpec(spec) {
     return spec;
 }
 
-function getCurrentPriceMap() { 
-    const found = priceLists.find(p => p.id === currentPriceListId);
-    return found ? found.priceMap : new Map();
-}
-
-function loadCurrentPriceTable(clearAll = false) {
-    const priceMap = getCurrentPriceMap();
-    const master = buildMasterProducts(priceMap);
-    if (clearAll) {
-        products = master.map(p => ({ ...p, checked: false }));
-        quantities.clear();
-        productRemarks.clear();
-        products.forEach(p => { quantities.set(p.id, 0); productRemarks.set(p.id, ''); });
-        searchOrder = [];
-    } else {
-        const oldChecked = new Map(products.map(p => [p.id, p.checked]));
-        const oldQuantities = new Map(quantities);
-        const oldPrices = new Map(products.map(p => [p.id, p.price]));
-        const oldCatno = new Map(products.map(p => [p.id, p.catno]));
-        const oldRemarks = new Map(productRemarks);
-        const oldDisplaySpec = new Map(products.map(p => [p.id, p.displaySpec]));
-        products = master.map(p => ({ 
-            ...p, 
-            checked: oldChecked.get(p.id) || false,
-            price: oldPrices.has(p.id) ? oldPrices.get(p.id) : p.price,
-            catno: oldCatno.has(p.id) ? oldCatno.get(p.id) : p.catno,
-            displaySpec: oldDisplaySpec.has(p.id) ? oldDisplaySpec.get(p.id) : p.displaySpec
-        }));
-        quantities.clear();
-        productRemarks.clear();
-        products.forEach(p => {
-            const oldQ = oldQuantities.get(p.id) || 0;
-            quantities.set(p.id, oldQ);
-            productRemarks.set(p.id, oldRemarks.get(p.id) || '');
-        });
+// ================================================================
+// 核心数据加载
+// ================================================================
+async function loadData() {
+    loadingOverlay.style.display = 'flex';
+    
+    const localData = loadFromLocal();
+    
+    try {
+        console.log('🔄 尝试从 Airtable 加载数据...');
+        const airtableProducts = await loadProductsFromAirtable();
+        
+        if (airtableProducts && airtableProducts.length > 0) {
+            products = airtableProducts;
+            
+            if (localData) {
+                const oldQuantities = new Map(localData.quantities || []);
+                const oldRemarks = new Map(localData.productRemarks || []);
+                products.forEach(p => {
+                    quantities.set(p.id, oldQuantities.get(p.id) || 0);
+                    productRemarks.set(p.id, oldRemarks.get(p.id) || '');
+                });
+                if (localData.quotations) quotations = localData.quotations;
+                if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
+                if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
+                if (localData.currentLang) currentLang = localData.currentLang;
+            } else {
+                products.forEach(p => {
+                    quantities.set(p.id, 0);
+                    productRemarks.set(p.id, '');
+                });
+            }
+            
+            isConnected = true;
+            updateSyncStatus(true);
+            console.log(`✅ 从 Airtable 加载了 ${products.length} 个产品`);
+        } else if (localData && localData.products && localData.products.length > 0) {
+            products = localData.products;
+            quantities = new Map(localData.quantities || []);
+            productRemarks = new Map(localData.productRemarks || []);
+            quotations = localData.quotations || [];
+            if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
+            if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
+            if (localData.currentLang) currentLang = localData.currentLang;
+            isConnected = false;
+            updateSyncStatus(false);
+            console.log(`📦 从本地缓存加载了 ${products.length} 个产品`);
+        } else {
+            products = initDefaultProducts();
+            products.forEach(p => {
+                quantities.set(p.id, 0);
+                productRemarks.set(p.id, '');
+            });
+            isConnected = false;
+            updateSyncStatus(false);
+        }
+    } catch (e) {
+        console.warn('⚠️ Airtable 加载失败:', e.message);
+        
+        if (localData && localData.products && localData.products.length > 0) {
+            products = localData.products;
+            quantities = new Map(localData.quantities || []);
+            productRemarks = new Map(localData.productRemarks || []);
+            quotations = localData.quotations || [];
+            if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
+            if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
+            if (localData.currentLang) currentLang = localData.currentLang;
+        } else {
+            products = initDefaultProducts();
+            products.forEach(p => {
+                quantities.set(p.id, 0);
+                productRemarks.set(p.id, '');
+            });
+        }
+        isConnected = false;
+        updateSyncStatus(false);
     }
-    if (document.getElementById('shippingSelect').value !== 'custom') {
-        const sug = suggestShipping(getTotalKits());
-        currentShippingCost = sug;
-        document.getElementById('shippingSelect').value = String(sug);
-    }
-    renderTable(); 
+    
+    renderTable();
     updateFooter();
-    saveToLocal();
-    // 自动同步到云端
-    queueSync();
+    loadingOverlay.style.display = 'none';
 }
 
+// ================================================================
+// 核心业务函数
+// ================================================================
 function getTotalKits(){ 
     let s=0; 
     for(let p of products) {
@@ -1024,7 +922,7 @@ function makeEditable(cell, field, productId, displayValue) {
                     product.displaySpec = calculateTotalSpec(product.specification);
                 }
                 saveToLocal();
-                queueSync(); // 修改后自动同步
+                queueSync();
             }
             
             const displayText = newValue || (field === 'catno' ? product?.catno || '' : field === 'name' ? product?.name || '' : (field === 'spec' ? product?.displaySpec || product?.specification || '' : ''));
@@ -1118,7 +1016,7 @@ function attachEvents(){
             saveToLocal();
         };
         inp.onchange = () => {
-            queueSync(); // 数量修改完成后同步
+            queueSync();
         };
     });
     
@@ -1137,7 +1035,7 @@ function attachEvents(){
             } 
         };
         inp.onchange = () => {
-            queueSync(); // 价格修改完成后同步
+            queueSync();
         };
     });
     
@@ -1148,7 +1046,7 @@ function attachEvents(){
             saveToLocal();
         };
         inp.onchange = () => {
-            queueSync(); // 备注修改完成后同步
+            queueSync();
         };
     });
 }
@@ -1165,33 +1063,6 @@ function bindSelectAll(){
         saveToLocal();
         queueSync();
     }; 
-}
-
-function renderPriceSelect() {
-    const select = document.getElementById('priceTableSelect');
-    select.innerHTML = '';
-    priceLists.forEach(pl => {
-        const option = document.createElement('option');
-        option.value = pl.id;
-        option.textContent = currentLang === 'zh' ? pl.name : (pl.nameEn || pl.name);
-        if(currentPriceListId === pl.id) option.selected = true;
-        select.appendChild(option);
-    });
-    const delBtn = document.getElementById('dynamicDeletePriceBtn');
-    if(delBtn) delBtn.onclick = (e) => {
-        if(priceLists.length <= 1) { alert(currentLang === 'zh' ? '至少保留一个价格表' : 'Keep at least one price list'); return; }
-        const idx = priceLists.findIndex(pl => pl.id === currentPriceListId);
-        if(idx !== -1 && confirm(currentLang === 'zh' ? `删除价格表"${priceLists[idx].name}"?` : `Delete "${priceLists[idx].name}"?`)) {
-            priceLists.splice(idx, 1);
-            currentPriceListId = priceLists[0].id;
-            renderPriceSelect();
-            loadCurrentPriceTable(true);
-            document.getElementById('importStatus').innerText = currentLang === 'zh' ? '已删除' : 'Deleted';
-            setTimeout(()=>document.getElementById('importStatus').innerText='', 2000);
-            saveToLocal();
-            queueSync();
-        }
-    };
 }
 
 function resetAll() {
@@ -1285,12 +1156,9 @@ function autoResizeTextarea(el) {
 function applyLanguage(lang) { 
     currentLang = lang; 
     document.body.setAttribute('data-lang', lang); 
-    renderPriceSelect(); 
     renderTable(); 
     updateFooter(); 
     if(document.getElementById('quotesModal').classList.contains('active')) renderQuotesTable(); 
-    const delBtn = document.getElementById('dynamicDeletePriceBtn'); 
-    if(delBtn) delBtn.title = currentLang === 'zh' ? '删除当前价格表' : 'Delete current price list';
     const shippingOpts = document.getElementById('shippingSelect').options;
     for(let i=0;i<shippingOpts.length;i++){
         if(shippingOpts[i].value === 'custom') shippingOpts[i].text = lang === 'zh' ? '自定义' : 'Custom';
@@ -1324,97 +1192,6 @@ function applyLanguage(lang) {
         }
     });
     saveToLocal();
-}
-
-// ================================================================
-// 导入价格表
-// ================================================================
-async function importPriceTable(file) {
-    const fileName = file.name;
-    let newMap = new Map();
-    try {
-        if (fileName.match(/\.(xlsx|xls|csv)$/i)) {
-            const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, {type: 'array'});
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
-            for(let i=0; i<rows.length; i++) {
-                const row = rows[i];
-                if(!row || row.length < 3) continue;
-                const name = (row[0] || '').toString().trim();
-                const spec = (row[1] || '').toString().trim();
-                const price = parseFloat(row[2]);
-                if(name && spec && !isNaN(price) && price > 0) {
-                    const catno = generateCatNo(name, spec);
-                    newMap.set(`${name}|${spec}`, {price: Math.round(price), catno: catno});
-                }
-            }
-        } else if (fileName.match(/\.pdf$/i)) {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let fullText = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(' ');
-                fullText += pageText + '\n';
-            }
-            const lines = fullText.split(/\r?\n/);
-            for (let line of lines) {
-                line = line.trim();
-                if (!line) continue;
-                let parts = line.split(/\s{2,}|,|\t/).filter(s => s.trim().length > 0);
-                if (parts.length < 2) {
-                    parts = line.split(/\s+/).filter(s => s.trim().length > 0);
-                }
-                if (parts.length >= 2) {
-                    let priceMatch = null;
-                    let priceIdx = -1;
-                    for (let i = parts.length - 1; i >= 0; i--) {
-                        const m = parts[i].match(/^(\d+(?:\.\d+)?)$/);
-                        if (m) {
-                            priceMatch = m;
-                            priceIdx = i;
-                            break;
-                        }
-                    }
-                    if (priceMatch && priceIdx > 0) {
-                        const price = parseFloat(priceMatch[1]);
-                        const specIdx = priceIdx - 1;
-                        if (specIdx >= 0) {
-                            const spec = parts[specIdx].trim();
-                            const nameParts = parts.slice(0, specIdx);
-                            const name = nameParts.join(' ').trim();
-                            if (name && spec && !isNaN(price) && price > 0) {
-                                const catno = generateCatNo(name, spec);
-                                newMap.set(`${name}|${spec}`, {price: Math.round(price), catno: catno});
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            alert('请上传 .xlsx, .xls, .csv 或 .pdf 文件');
-            return;
-        }
-        if(newMap.size === 0) { 
-            alert('未发现有效数据，需要三列：产品名，规格，价格'); 
-            return; 
-        }
-        const newId = 'custom_' + Date.now();
-        const listName = fileName.replace(/\.[^.]+$/, '');
-        priceLists.push({ id: newId, name: listName, nameEn: listName, priceMap: newMap });
-        renderPriceSelect();
-        currentPriceListId = newId;
-        document.getElementById('priceTableSelect').value = newId;
-        loadCurrentPriceTable(true);
-        document.getElementById('importStatus').innerText = `✅ ${newMap.size}条`;
-        setTimeout(()=>document.getElementById('importStatus').innerText='', 3000);
-        saveToLocal();
-        queueSync();
-    } catch(e) { 
-        alert('解析失败: ' + e.message); 
-    }
 }
 
 // ================================================================
@@ -1634,7 +1411,6 @@ function saveQuotation(){
         productTotal, 
         grandTotal: productTotal + currentShippingCost, 
         items, 
-        priceListName: priceLists.find(p => p.id === currentPriceListId)?.name || '标准', 
         trackingNumber: "", 
         paymentMethod: "", 
         proofImages: [], 
@@ -1910,7 +1686,7 @@ function clearFilters(){
 }
 
 // ================================================================
-// Airtable 同步功能 (自动排队执行)
+// Airtable 同步功能（自动排队执行）
 // ================================================================
 function updateSyncStatus(connected, syncing = false) {
     if (syncing) {
@@ -1939,18 +1715,15 @@ function updateSyncStatus(connected, syncing = false) {
 // 队列同步 - 防抖，避免频繁请求
 function queueSync() {
     if (!isConnected) {
-        // 如果离线，只保存本地
         saveToLocal();
         return;
     }
     
-    // 清除之前的定时器
-    if (window._syncTimer) {
-        clearTimeout(window._syncTimer);
+    if (syncTimer) {
+        clearTimeout(syncTimer);
     }
     
-    // 延迟2秒后执行同步，避免频繁修改时多次请求
-    window._syncTimer = setTimeout(async () => {
+    syncTimer = setTimeout(async () => {
         if (isSyncRunning) return;
         try {
             await syncToCloud();
@@ -1987,7 +1760,7 @@ async function syncToCloud() {
     }
 }
 
-// 手动同步（点击按钮时）
+// 手动同步 - 先下载云端数据，再上传本地
 async function manualSync() {
     if (isSyncing) return;
     
@@ -1995,37 +1768,50 @@ async function manualSync() {
     const originalText = btn.textContent;
     btn.textContent = currentLang === 'zh' ? '⏳ 同步中...' : '⏳ Syncing...';
     btn.disabled = true;
+    updateSyncStatus(true, true);
     
     try {
-        // 先尝试从 Airtable 加载最新数据
+        // 1. 先保存本地
+        saveToLocal();
+        
+        // 2. 尝试从云端加载最新数据
+        let cloudProducts = [];
         try {
-            const airtableProducts = await loadProductsFromAirtable();
-            if (airtableProducts && airtableProducts.length > 0) {
-                // 合并数据：保留本地数量，更新价格等
-                const oldQuantities = new Map(quantities);
-                const oldRemarks = new Map(productRemarks);
-                const oldChecked = new Map(products.map(p => [p.id, p.checked]));
-                
-                products = airtableProducts;
-                products.forEach(p => {
-                    quantities.set(p.id, oldQuantities.get(p.id) || 0);
-                    productRemarks.set(p.id, oldRemarks.get(p.id) || '');
-                    p.checked = oldChecked.get(p.id) || false;
-                });
-                renderTable();
-                updateFooter();
-                alert(currentLang === 'zh' ? '✅ 已从云端加载最新数据' : '✅ Loaded latest data from cloud');
-            }
+            cloudProducts = await loadProductsFromAirtable();
         } catch(e) {
-            // 如果下载失败，尝试上传
-            console.log('下载云端数据失败，尝试上传本地数据');
+            console.log('无法从云端下载，将只上传本地数据');
         }
         
-        // 上传本地数据到云端
-        await syncToCloud();
+        if (cloudProducts && cloudProducts.length > 0) {
+            // 合并：保留本地数量和备注，更新价格
+            const oldQuantities = new Map(quantities);
+            const oldRemarks = new Map(productRemarks);
+            const oldChecked = new Map(products.map(p => [p.id, p.checked]));
+            
+            products = cloudProducts;
+            products.forEach(p => {
+                quantities.set(p.id, oldQuantities.get(p.id) || 0);
+                productRemarks.set(p.id, oldRemarks.get(p.id) || '');
+                p.checked = oldChecked.get(p.id) || false;
+            });
+            renderTable();
+            updateFooter();
+            alert(currentLang === 'zh' ? '✅ 已加载云端最新数据' : '✅ Loaded latest cloud data');
+        }
+        
+        // 3. 上传本地数据到云端
+        await syncProductsToAirtable(products);
+        isConnected = true;
+        updateSyncStatus(true, false);
+        const now = new Date();
+        syncTimeText.textContent = currentLang === 'zh' ? 
+            `最后同步: ${now.toLocaleString()}` : 
+            `Last sync: ${now.toLocaleString()}`;
         alert(currentLang === 'zh' ? '✅ 同步成功！' : '✅ Synced successfully!');
+        
     } catch(e) {
         alert(currentLang === 'zh' ? '❌ 同步失败: ' + e.message : '❌ Sync failed: ' + e.message);
+        updateSyncStatus(false, false);
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
@@ -2044,23 +1830,6 @@ async function init() {
     await loadData();
     
     // 绑定事件
-    document.getElementById('priceTableSelect').onchange = (e) => { 
-        currentPriceListId = e.target.value; 
-        loadCurrentPriceTable(true);
-        saveToLocal();
-        queueSync();
-    };
-    
-    document.getElementById('importPriceBtn').onclick = () => { 
-        let input = document.createElement('input'); 
-        input.type = 'file'; 
-        input.accept = '.xlsx,.xls,.csv,.pdf'; 
-        input.onchange = e => { 
-            if(e.target.files[0]) importPriceTable(e.target.files[0]); 
-        }; 
-        input.click(); 
-    };
-    
     document.getElementById('showSelectedBtn').onclick = () => { 
         displayMode = 'selected'; 
         renderTable(); 
@@ -2107,7 +1876,7 @@ async function init() {
         }
     });
     
-    // Airtable 手动同步按钮
+    // 同步按钮 - 使用手动同步
     document.getElementById('cloudSyncBtn').onclick = manualSync;
     
     const kitsInput = document.getElementById('kitsEditableInput');
