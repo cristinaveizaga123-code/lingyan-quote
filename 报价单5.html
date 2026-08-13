@@ -406,6 +406,8 @@ let columnVisibility = {0:true,1:true,2:true,3:true,4:true,5:true,6:true,7:true}
 let isUpdatingKits = false;
 let isConnected = false;
 let isSyncing = false;
+let syncQueue = [];
+let isSyncRunning = false;
 
 // ================================================================
 // DOM 引用
@@ -424,7 +426,7 @@ const cloudStatusText = $('cloudStatusText');
 const loadingOverlay = $('loadingOverlay');
 
 // ================================================================
-// Airtable API 操作 (字段名已按您的数据库修改: Product, Spec, Price, Cat. No)
+// Airtable API 操作
 // ================================================================
 function getAirtableHeaders() {
     return {
@@ -522,7 +524,7 @@ function loadFromLocal() {
 }
 
 // ================================================================
-// 核心数据加载 (报价单3 + Airtable)
+// 核心数据加载
 // ================================================================
 async function loadData() {
     loadingOverlay.style.display = 'flex';
@@ -626,7 +628,7 @@ async function loadData() {
 }
 
 // ================================================================
-// 初始数据 (来自报价单3)
+// 初始数据
 // ================================================================
 const PRICE_DATA = [
     ["Semaglutide", "5mg*10vials", 55],
@@ -739,7 +741,7 @@ function initDefaultProducts() {
 }
 
 // ================================================================
-// 核心业务函数 (来自报价单3)
+// 核心业务函数
 // ================================================================
 function buildMasterProducts(priceMap) {
     let arr = []; let id=1;
@@ -841,6 +843,8 @@ function loadCurrentPriceTable(clearAll = false) {
     renderTable(); 
     updateFooter();
     saveToLocal();
+    // 自动同步到云端
+    queueSync();
 }
 
 function getTotalKits(){ 
@@ -916,7 +920,7 @@ function updateFooter(){
 }
 
 // ================================================================
-// 渲染表格 (来自报价单3)
+// 渲染表格
 // ================================================================
 function renderTable(){
     let list = getFiltered();
@@ -1013,6 +1017,7 @@ function makeEditable(cell, field, productId, displayValue) {
                     product.displaySpec = calculateTotalSpec(product.specification);
                 }
                 saveToLocal();
+                queueSync(); // 修改后自动同步
             }
             
             const displayText = newValue || (field === 'catno' ? product?.catno || '' : field === 'name' ? product?.name || '' : (field === 'spec' ? product?.displaySpec || product?.specification || '' : ''));
@@ -1071,12 +1076,14 @@ function attachEvents(){
                     quantities.set(p.id, 1);
                     renderTable();
                     saveToLocal();
+                    queueSync();
                     return;
                 }
             }
             renderTable(); 
             updateFooter(); 
             saveToLocal();
+            queueSync();
         }; 
     });
     
@@ -1102,7 +1109,10 @@ function attachEvents(){
             } 
             updateFooter(); 
             saveToLocal();
-        }; 
+        };
+        inp.onchange = () => {
+            queueSync(); // 数量修改完成后同步
+        };
     });
     
     document.querySelectorAll('.price-input').forEach(inp => { 
@@ -1118,7 +1128,10 @@ function attachEvents(){
                 updateFooter(); 
                 saveToLocal();
             } 
-        }; 
+        };
+        inp.onchange = () => {
+            queueSync(); // 价格修改完成后同步
+        };
     });
     
     document.querySelectorAll('.remark-input').forEach(inp => { 
@@ -1126,7 +1139,10 @@ function attachEvents(){
         inp.oninput = () => { 
             productRemarks.set(pid, inp.value); 
             saveToLocal();
-        }; 
+        };
+        inp.onchange = () => {
+            queueSync(); // 备注修改完成后同步
+        };
     });
 }
 
@@ -1140,6 +1156,7 @@ function bindSelectAll(){
         renderTable(); 
         updateFooter(); 
         saveToLocal();
+        queueSync();
     }; 
 }
 
@@ -1165,6 +1182,7 @@ function renderPriceSelect() {
             document.getElementById('importStatus').innerText = currentLang === 'zh' ? '已删除' : 'Deleted';
             setTimeout(()=>document.getElementById('importStatus').innerText='', 2000);
             saveToLocal();
+            queueSync();
         }
     };
 }
@@ -1186,6 +1204,7 @@ function resetAll() {
     renderTable();
     updateFooter();
     saveToLocal();
+    queueSync();
 }
 
 function applyColumnVisibility() {
@@ -1241,6 +1260,7 @@ function handleCustomShippingDisplay(show, initialValue = null) {
             selectEl.value = 'custom';
             selectEl.dataset.userSelected = 'true';
             saveToLocal();
+            queueSync();
         };
         customInput.onblur = finishCustomEdit;
         customInput.onkeypress = (e) => { if(e.key === 'Enter') { e.preventDefault(); finishCustomEdit(); } };
@@ -1300,7 +1320,7 @@ function applyLanguage(lang) {
 }
 
 // ================================================================
-// 导入价格表 (来自报价单3)
+// 导入价格表
 // ================================================================
 async function importPriceTable(file) {
     const fileName = file.name;
@@ -1384,13 +1404,14 @@ async function importPriceTable(file) {
         document.getElementById('importStatus').innerText = `✅ ${newMap.size}条`;
         setTimeout(()=>document.getElementById('importStatus').innerText='', 3000);
         saveToLocal();
+        queueSync();
     } catch(e) { 
         alert('解析失败: ' + e.message); 
     }
 }
 
 // ================================================================
-// 智能查询 (来自报价单3)
+// 智能查询
 // ================================================================
 const PEPTIDE_ALIASES = {
     'sema': 'semaglutide', 'semaglutide': 'semaglutide', 'sem': 'semaglutide',
@@ -1574,12 +1595,13 @@ function executeBatchQuery() {
     renderTable();
     updateFooter();
     saveToLocal();
+    queueSync();
     document.getElementById('importStatus').innerText = `✅ ${matchedIds.length} 个产品`;
     setTimeout(()=>document.getElementById('importStatus').innerText='', 4000);
 }
 
 // ================================================================
-// 报价单功能 (来自报价单3)
+// 报价单功能
 // ================================================================
 function saveQuotation(){
     let customer = prompt(currentLang === 'zh' ? "顾客姓名:" : "Customer name:", "Guest"); 
@@ -1641,6 +1663,7 @@ function saveQuotation(){
         alert(currentLang === 'zh' ? "保存成功" : "Saved"); 
     }
     saveToLocal();
+    queueSync();
 }
 
 function editQuote(quoteId){ 
@@ -1672,6 +1695,7 @@ function editQuote(quoteId){
     editingQuoteId = quoteId; 
     alert(`${currentLang === 'zh' ? '已加载' : 'Loaded'}: ${q.customerName}`); 
     saveToLocal();
+    queueSync();
 }
 
 function openTracking(num){ 
@@ -1680,12 +1704,12 @@ function openTracking(num){
 
 function updateTracking(id,val){ 
     let q = quotations.find(q => q.id === id); 
-    if(q){ q.trackingNumber = val; saveToLocal(); renderQuotesTable(); } 
+    if(q){ q.trackingNumber = val; saveToLocal(); renderQuotesTable(); queueSync(); } 
 }
 
 function updatePayment(id,val){ 
     let q = quotations.find(q => q.id === id); 
-    if(q){ q.paymentMethod = val; saveToLocal(); renderQuotesTable(); } 
+    if(q){ q.paymentMethod = val; saveToLocal(); renderQuotesTable(); queueSync(); } 
 }
 
 function updateAmountPaid(id,val){ 
@@ -1697,17 +1721,18 @@ function updateAmountPaid(id,val){
         else q.dealStatus = "未成交"; 
         saveToLocal(); 
         renderQuotesTable(); 
+        queueSync();
     } 
 }
 
 function updateDealStatus(id,val){ 
     let q = quotations.find(q => q.id === id); 
-    if(q){ q.dealStatus = val; saveToLocal(); renderQuotesTable(); } 
+    if(q){ q.dealStatus = val; saveToLocal(); renderQuotesTable(); queueSync(); } 
 }
 
 function updateRemark(id,val){ 
     let q = quotations.find(q => q.id === id); 
-    if(q){ q.remark = val; saveToLocal(); renderQuotesTable(); } 
+    if(q){ q.remark = val; saveToLocal(); renderQuotesTable(); queueSync(); } 
 }
 
 function viewProof(data){ 
@@ -1754,6 +1779,7 @@ function setupProofEditor(quoteId, container){
                     saveToLocal(); 
                     refresh(); 
                     renderQuotesTable(); 
+                    queueSync();
                 }; 
                 div.appendChild(img); 
                 div.appendChild(del); 
@@ -1774,6 +1800,7 @@ function setupProofEditor(quoteId, container){
         saveToLocal(); 
         refresh(); 
         renderQuotesTable(); 
+        queueSync();
     } 
     
     editor.addEventListener('paste', (e) => { 
@@ -1876,7 +1903,7 @@ function clearFilters(){
 }
 
 // ================================================================
-// Airtable 同步功能
+// Airtable 同步功能 (自动排队执行)
 // ================================================================
 function updateSyncStatus(connected, syncing = false) {
     if (syncing) {
@@ -1902,9 +1929,34 @@ function updateSyncStatus(connected, syncing = false) {
     }
 }
 
+// 队列同步 - 防抖，避免频繁请求
+function queueSync() {
+    if (!isConnected) {
+        // 如果离线，只保存本地
+        saveToLocal();
+        return;
+    }
+    
+    // 清除之前的定时器
+    if (window._syncTimer) {
+        clearTimeout(window._syncTimer);
+    }
+    
+    // 延迟2秒后执行同步，避免频繁修改时多次请求
+    window._syncTimer = setTimeout(async () => {
+        if (isSyncRunning) return;
+        try {
+            await syncToCloud();
+        } catch(e) {
+            console.warn('自动同步失败:', e);
+        }
+    }, 2000);
+}
+
 async function syncToCloud() {
     if (isSyncing) return;
     isSyncing = true;
+    isSyncRunning = true;
     updateSyncStatus(true, true);
     
     try {
@@ -1912,9 +1964,10 @@ async function syncToCloud() {
         await syncProductsToAirtable(products);
         isConnected = true;
         updateSyncStatus(true, false);
+        const now = new Date();
         syncTimeText.textContent = currentLang === 'zh' ? 
-            `最后同步: ${new Date().toLocaleString()}` : 
-            `Last sync: ${new Date().toLocaleString()}`;
+            `最后同步: ${now.toLocaleString()}` : 
+            `Last sync: ${now.toLocaleString()}`;
         console.log('✅ 同步到云端成功');
         return true;
     } catch(e) {
@@ -1923,6 +1976,52 @@ async function syncToCloud() {
         throw e;
     } finally {
         isSyncing = false;
+        isSyncRunning = false;
+    }
+}
+
+// 手动同步（点击按钮时）
+async function manualSync() {
+    if (isSyncing) return;
+    
+    const btn = document.getElementById('cloudSyncBtn');
+    const originalText = btn.textContent;
+    btn.textContent = currentLang === 'zh' ? '⏳ 同步中...' : '⏳ Syncing...';
+    btn.disabled = true;
+    
+    try {
+        // 先尝试从 Airtable 加载最新数据
+        try {
+            const airtableProducts = await loadProductsFromAirtable();
+            if (airtableProducts && airtableProducts.length > 0) {
+                // 合并数据：保留本地数量，更新价格等
+                const oldQuantities = new Map(quantities);
+                const oldRemarks = new Map(productRemarks);
+                const oldChecked = new Map(products.map(p => [p.id, p.checked]));
+                
+                products = airtableProducts;
+                products.forEach(p => {
+                    quantities.set(p.id, oldQuantities.get(p.id) || 0);
+                    productRemarks.set(p.id, oldRemarks.get(p.id) || '');
+                    p.checked = oldChecked.get(p.id) || false;
+                });
+                renderTable();
+                updateFooter();
+                alert(currentLang === 'zh' ? '✅ 已从云端加载最新数据' : '✅ Loaded latest data from cloud');
+            }
+        } catch(e) {
+            // 如果下载失败，尝试上传
+            console.log('下载云端数据失败，尝试上传本地数据');
+        }
+        
+        // 上传本地数据到云端
+        await syncToCloud();
+        alert(currentLang === 'zh' ? '✅ 同步成功！' : '✅ Synced successfully!');
+    } catch(e) {
+        alert(currentLang === 'zh' ? '❌ 同步失败: ' + e.message : '❌ Sync failed: ' + e.message);
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
     }
 }
 
@@ -1930,16 +2029,19 @@ async function syncToCloud() {
 // 初始化
 // ================================================================
 async function init() {
-    console.log('🚀 灵岩报价系统启动中 (合并版 - 字段名已匹配)');
+    console.log('🚀 灵岩报价系统启动中 (自动同步版)');
     console.log('📋 Airtable Base ID:', AIRTABLE_CONFIG.baseId);
     console.log('📋 字段映射: Product, Spec, Price, Cat. No');
+    console.log('💡 修改数据后会自动同步到云端');
     
     await loadData();
     
+    // 绑定事件
     document.getElementById('priceTableSelect').onchange = (e) => { 
         currentPriceListId = e.target.value; 
         loadCurrentPriceTable(true);
         saveToLocal();
+        queueSync();
     };
     
     document.getElementById('importPriceBtn').onclick = () => { 
@@ -1976,6 +2078,7 @@ async function init() {
             currentShippingCost = parseFloat(e.target.value);
             updateFooter();
             saveToLocal();
+            queueSync();
         }
     };
     
@@ -1997,22 +2100,8 @@ async function init() {
         }
     });
     
-    document.getElementById('cloudSyncBtn').onclick = async function() {
-        const btn = this;
-        const originalText = btn.textContent;
-        btn.textContent = currentLang === 'zh' ? '⏳ 同步中...' : '⏳ Syncing...';
-        btn.disabled = true;
-        
-        try {
-            await syncToCloud();
-            alert(currentLang === 'zh' ? '✅ 同步成功！' : '✅ Synced successfully!');
-        } catch(e) {
-            alert(currentLang === 'zh' ? '❌ 同步失败: ' + e.message : '❌ Sync failed: ' + e.message);
-        } finally {
-            btn.textContent = originalText;
-            btn.disabled = false;
-        }
-    };
+    // Airtable 手动同步按钮
+    document.getElementById('cloudSyncBtn').onclick = manualSync;
     
     const kitsInput = document.getElementById('kitsEditableInput');
     kitsInput.addEventListener('change', function() {
@@ -2028,6 +2117,7 @@ async function init() {
         updateFooter();
         isUpdatingKits = false;
         saveToLocal();
+        queueSync();
     });
     
     document.querySelectorAll('.column-selector input[type="checkbox"]').forEach(cb => {
@@ -2080,10 +2170,18 @@ async function init() {
     applyLanguage(currentLang || 'zh');
     autoResizeTextarea(document.getElementById('searchProductInput'));
     
-    console.log('✅ 灵岩报价系统启动完成');
+    // 启动后自动同步一次
+    setTimeout(() => {
+        if (isConnected && products.length > 0) {
+            queueSync();
+        }
+    }, 3000);
+    
+    console.log('✅ 灵岩报价系统启动完成 (自动同步版)');
     console.log('📦 产品数:', products.length);
     console.log('📋 报价单数:', quotations.length);
     console.log('☁️ 连接状态:', isConnected ? '已连接' : '离线');
+    console.log('💡 修改价格/数量后 2 秒自动同步到 Airtable');
 }
 
 document.addEventListener('DOMContentLoaded', init);
