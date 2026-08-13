@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>LINGYAN · 报价系统</title>
+    <style>
+        * { box-sizing: border-box; font-family: system-ui, 'Segoe UI', 'Inter', 'Roboto', sans-serif; }
+        body { background: #eef3fc; margin: 0; padding: 12px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .quote-container { max-width: 1480px; width: 100%; background: white; border-radius: 28px; box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.15); overflow: hidden; }
+        @media (max-width: 768px) {
+            body { padding: 8px; }
+            .header { padding: 0.8rem 1rem; }
+            .header h1 { font-size: 1.2rem; }
+            .toolbar, .search-area, .shipping-panel { padding: 0.8rem 1rem; }
+            .table-wrapper { padding: 0.5rem 1rem; overflow-x: auto; }
+            .product-table, .quotes-table { font-size: 0.7rem; }
+            .qty-input, .price-input { width: 65px; padding: 0.3rem; font-size: 0.7rem; }
+            .btn { padding: 0.3rem 0.8rem; font-size: 0.7rem; }
+            .save-quote-btn { padding: 0.3rem 1rem; font-size: 0.7rem; }
+            .filter-bar { gap: 6px; }
+            .filter-item input, .filter-item select { min-width: 100px; font-size: 0.7rem; padding: 4px 6px; }
+            .total-card { padding: 0.3rem 1rem; }
+            .total-number { font-size: 1.8rem; }
+            .kits-input { width: 60px !important; font-size: 0.7rem !important; }
+        }
+        @media (max-width: 480px) {
+            .product-table th, .product-table td { padding: 0.4rem 0.3rem; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .filter-item { width: 100%; }
+            .btn-search-filter, .btn-clear-filter { width: 100%; text-align: center; margin-top: 6px; }
+        }
+        .header { background: linear-gradient(115deg, #0a2e2a 0%, #1a6b5c 100%); padding: 1.2rem 2rem; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem; }
+        .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; }
+        .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .lang-switch, .btn-view-quotes { background: rgba(255,255,255,0.2); border: none; padding: 0.3rem 0.8rem; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; font-size: 0.8rem; transition: 0.2s; }
+        .lang-switch:hover, .btn-view-quotes:hover { background: rgba(255,255,255,0.35); }
+        .collapse-header { display: flex; justify-content: flex-end; align-items: center; cursor: pointer; padding: 0.3rem 1.5rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+        .collapse-icon { font-size: 1rem; transition: transform 0.2s; font-weight: 600; color: #1a6b5c; }
+        .collapsible-content { transition: all 0.2s ease; overflow: hidden; }
+        .collapsible-content.collapsed { display: none; }
+        .toolbar { background: white; padding: 0.8rem 2rem; border-bottom: 1px solid #e9edf2; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.8rem; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn { background: #f1f5f9; border: none; padding: 0.4rem 1rem; border-radius: 40px; font-weight: 500; font-size: 0.8rem; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: #1a6b5c; color: white; }
+        .btn-outline { border: 1px solid #cbdde6; background: white; }
+        .price-list-selector { display: flex; align-items: center; gap: 10px; background: #f9fafc; padding: 0.2rem 0.8rem; border-radius: 50px; flex-wrap: wrap; }
+        .price-selector-wrapper { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+        .price-table-dropdown { padding: 0.3rem 1.8rem 0.3rem 0.8rem; border-radius: 40px; border: 1px solid #cbdde6; background: white; font-weight: 500; cursor: pointer; font-size: 0.75rem; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>"); background-repeat: no-repeat; background-position: right 6px center; max-width: 200px; }
+        .price-table-dropdown option { overflow: hidden; text-overflow: ellipsis; }
+        .import-btn { background: #4a6a5e; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 40px; font-size: 0.7rem; cursor: pointer; }
+        .search-area { background: white; padding: 0.5rem 2rem; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #eef2f6; flex-wrap: wrap; }
+        .search-input-wrapper { flex: 1; min-width: 150px; position: relative; }
+        .search-input { width: 100%; padding: 10px 14px; border: 1px solid #cbdde6; font-size: 0.8rem; resize: both; overflow: auto; min-height: 42px; font-family: inherit; background: white; border-radius: 0; }
+        .batch-query-btn { background: #3a7b6a; color: white; border: none; padding: 0.3rem 1.2rem; border-radius: 40px; font-size: 0.75rem; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+        .batch-query-btn:hover { background: #2a5f50; }
+        .save-quote-btn { background: #2c6e5d; color: white; border: none; padding: 0.5rem 1.2rem; border-radius: 40px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .shipping-panel { background: #fffaf0; padding: 0.7rem 2rem; border-bottom: 1px solid #ffe6c7; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem; }
+        .shipping-selector { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .shipping-selector select { padding: 0.3rem 0.8rem; border-radius: 40px; border: 1px solid #f0cf9c; background: white; font-weight: 500; cursor: pointer; font-size: 0.75rem; }
+        .custom-shipping-input { padding: 0.3rem 0.8rem; border-radius: 40px; border: 1px solid #f5a623; background: #fff8f0; font-weight: 500; font-size: 0.75rem; width: 100px; text-align: center; margin-left: 8px; }
+        .table-wrapper { padding: 0.8rem 1.5rem; overflow-x: auto; }
+        .product-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 700px; table-layout: fixed; }
+        .product-table th { text-align: center !important; padding: 0.8rem 0.5rem; background: #fafcff; font-weight: 600; color: #1b4e41; border-bottom: 2px solid #e2ecf3; position: relative; user-select: none; vertical-align: middle; }
+        .product-table th:first-child { text-align: center !important; width: 40px; }
+        .product-table td { padding: 0.7rem 0.5rem; border-bottom: 1px solid #ecf3f8; vertical-align: middle !important; text-align: center !important; }
+        .product-table td:first-child { text-align: center !important; }
+        .checkbox-col { width: 40px; text-align: center; }
+        .product-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #1a6b5c; }
+        .qty-input { width: 80px; padding: 0.4rem 0.2rem; text-align: center; border: 1px solid #cbdbe0; border-radius: 40px; font-weight: 500; margin: 0; }
+        .price-input { width: 80px; padding: 0.4rem 0.2rem; text-align: center; border: 1px solid #cbdbe0; border-radius: 40px; font-weight: 500; margin: 0; background: white; }
+        .item-total { background: #eef6f2; padding: 0.2rem 0.6rem; border-radius: 40px; font-weight: 700; display: inline-block; font-size: 0.75rem; min-width: 60px; text-align: center; }
+        .remark-input { width: 100%; padding: 0.4rem 0.2rem; text-align: center; border: 1px solid #cbdbe0; border-radius: 40px; font-weight: 400; margin: 0; background: white; font-size: 0.75rem; box-sizing: border-box; }
+        .spec-cell { font-weight: 700; color: #1a4d3e; background: #f4fbf8; padding: 0.2rem 0.5rem; border-radius: 24px; display: inline-block; font-size: 0.7rem; cursor: pointer; min-width: 50px; }
+        .product-name-cell { position: relative; cursor: pointer; font-weight: 500; min-width: 60px; display: inline-block; }
+        .product-name-cell .fullname-tooltip { visibility: hidden; opacity: 0; transition: opacity 0.2s; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: #1f2e2a; color: #f0f7f4; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 400; white-space: nowrap; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.25); pointer-events: none; }
+        .product-name-cell:hover .fullname-tooltip { visibility: visible; opacity: 1; }
+        .catno-cell { font-size: 0.7rem; color: #1a4d3e; background: #f0f4f9; padding: 0.1rem 0.4rem; border-radius: 12px; display: inline-block; cursor: pointer; min-width: 40px; }
+        .footer-summary { background: white; padding: 1rem 1.5rem; border-top: 2px solid #e2ecf3; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; }
+        .left-stats-area { display: flex; flex-direction: column; gap: 0.5rem; }
+        .stats-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.8rem; }
+        .info-card { background: #f0f6f3; padding: 0.3rem 1rem; border-radius: 60px; font-size: 0.8rem; font-weight: 600; color: #1f5e4e; display: flex; align-items: center; gap: 6px; }
+        .info-card .kits-input { width: 55px; padding: 0.2rem 0.4rem; border-radius: 20px; border: 1px solid #cbdde6; font-size: 0.75rem; text-align: center; font-weight: 600; background: white; }
+        .shipping-highlight { background: #ffeed9; border-left: 4px solid #f5a623; padding: 0.3rem 1rem; border-radius: 60px; display: inline-flex; align-items: baseline; gap: 8px; }
+        .shipping-highlight .value { font-size: 1.2rem; font-weight: 800; color: #c46f0a; }
+        .total-card { background: linear-gradient(135deg, #1e2a2a 0%, #0f1a1a 100%); border-radius: 60px; padding: 0.6rem 1.8rem; display: inline-flex; align-items: baseline; gap: 0.8rem; box-shadow: 0 8px 20px rgba(0,0,0,0.2); border: 1px solid rgba(245,215,66,0.3); }
+        .total-card span:first-child { color: #f5d742; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px; }
+        .total-number { font-size: 2rem; font-weight: 900; color: #f5d742; line-height: 1; text-shadow: 0 0 5px rgba(245,215,66,0.3); }
+        .info-text { background: #f2f6fb; padding: 0.2rem 0.8rem; border-radius: 60px; font-size: 0.7rem; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 1000; visibility: hidden; opacity: 0; transition: 0.2s; }
+        .modal-overlay.active { visibility: visible; opacity: 1; }
+        .modal-content { background: white; border-radius: 28px; max-width: 95vw; width: 1300px; max-height: 85vh; overflow-y: auto; padding: 1rem; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e9edf2; padding-bottom: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 8px; }
+        .modal-header h2 { margin: 0; color: #1a6b5c; font-size: 1.2rem; }
+        .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #7f8c8d; }
+        .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding: 8px 0; border-bottom: 1px solid #e2ecf3; align-items: flex-end; }
+        .filter-item { display: flex; flex-direction: column; gap: 3px; font-size: 0.65rem; font-weight: 600; color: #2c5a4a; }
+        .filter-item input, .filter-item select { padding: 5px 8px; border-radius: 20px; border: 1px solid #cbdde6; font-size: 0.7rem; min-width: 110px; }
+        .btn-clear-filter, .btn-search-filter { background: #eef2fa; border: none; padding: 5px 12px; border-radius: 30px; cursor: pointer; font-size: 0.65rem; }
+        .btn-search-filter { background: #1a6b5c; color: white; }
+        .quotes-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; min-width: 1000px; }
+        .quotes-table th, .quotes-table td { padding: 6px 5px; border-bottom: 1px solid #e2edf2; text-align: left; vertical-align: top; }
+        .quotes-table th { background: #f0f7f4; color: #1f5e4e; position: sticky; top: 0; }
+        .tracking-link { color: #1a6b5c; cursor: pointer; font-weight: 600; text-decoration: underline; }
+        .tracking-input { width: 100px; padding: 3px 6px; border-radius: 20px; border: 1px solid #cbdde6; font-size: 0.65rem; }
+        .payment-select { padding: 3px 6px; border-radius: 20px; border: 1px solid #cbdde6; background: white; font-size: 0.65rem; width: 95px; }
+        .quote-products-list { margin: 0; padding-left: 14px; font-size: 0.6rem; line-height: 1.3; }
+        .image-preview-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1100; visibility: hidden; opacity: 0; }
+        .image-preview-modal.active { visibility: visible; opacity: 1; }
+        .image-preview-content { max-width: 90vw; max-height: 90vh; background: white; border-radius: 20px; padding: 0.8rem; }
+        .image-preview-content img { max-width: 100%; max-height: 80vh; border-radius: 12px; }
+        .proof-editor { background: #f8f9fc; border: 1px dashed #cbdde6; border-radius: 12px; padding: 6px; min-width: 140px; }
+        .proof-editor.drag-over { background: #e6f7ff; border-color: #1a6b5c; }
+        .proof-images-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; align-items: center; min-height: 40px; }
+        .proof-img-item { position: relative; width: 40px; height: 40px; border-radius: 6px; overflow: hidden; border: 1px solid #e2e8f0; background: white; }
+        .proof-thumb { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+        .del-img-icon { position: absolute; top: -5px; right: -5px; background: #ff4d4f; color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid white; }
+        .proof-hint { font-size: 0.55rem; color: #8a9aa8; text-align: center; margin-top: 3px; }
+        .amount-paid-input { width: 75px; padding: 3px 5px; border-radius: 20px; border: 1px solid #cbdde6; font-size: 0.65rem; }
+        .remark-input-quote { width: 110px; padding: 3px 5px; border-radius: 16px; border: 1px solid #cbdde6; font-size: 0.65rem; }
+        .edit-quote-btn { background: #4caf50; color: white; border: none; padding: 3px 8px; border-radius: 20px; cursor: pointer; font-size: 0.6rem; }
+        .select-all-col { width: 40px; text-align: center; }
+        .import-notice { font-size: 0.7rem; color: #2c6e5d; margin-left: 6px; }
+        .delete-price-btn { background: none; border: none; color: #d9534f; font-weight: bold; cursor: pointer; font-size: 12px; margin-left: 4px; padding: 0 4px; border-radius: 12px; }
+        .delete-price-btn:hover { background: #f8d7da; color: #c9302c; }
+        [data-lang="en"] .lang-zh { display: none; }
+        [data-lang="zh"] .lang-en { display: none; }
+        .hidden-col { display: none !important; }
+        .column-selector { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+        .column-selector label { font-size: 0.75rem; display: flex; align-items: center; gap: 3px; cursor: pointer; background: #f5f7fa; padding: 2px 8px; border-radius: 30px; border: 1px solid #e2e8f0; }
+        .column-selector label:hover { background: #eef2f6; }
+        .column-selector input[type="checkbox"] { accent-color: #1a6b5c; cursor: pointer; }
+        .footer-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .btn-save-inline { background: #2c6e5d; color: white; border: none; padding: 0.4rem 1.2rem; border-radius: 40px; font-weight: 600; cursor: pointer; font-size: 0.8rem; white-space: nowrap; }
+        .btn-save-inline:hover { background: #1f5a4a; }
+        .editable-cell { cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 4px; transition: background 0.15s; }
+        .editable-cell:hover { background: #e8f0fe; }
+        .editable-cell.editing { background: #fffde7; outline: 2px solid #ffd54f; outline-offset: 0px; }
+        .editable-cell .editable-input { border: none; background: transparent; font: inherit; color: inherit; padding: 0; margin: 0; width: 100%; outline: none; font-weight: inherit; text-align: center; }
+        .editable-cell .editable-input:focus { outline: none; }
+        .catno-cell.editable-cell { background: #f0f4f9; padding: 0.1rem 0.4rem; border-radius: 12px; display: inline-block; }
+        .catno-cell.editable-cell:hover { background: #e0e8f0; }
+        .spec-cell.editable-cell { background: #f4fbf8; padding: 0.2rem 0.5rem; border-radius: 24px; display: inline-block; }
+        .spec-cell.editable-cell:hover { background: #e4f3ec; }
+        .product-name-cell.editable-cell { display: inline-block; padding: 0.1rem 0.3rem; border-radius: 4px; }
+        .product-name-cell.editable-cell:hover { background: #e8f0fe; }
+        .cloud-status { font-size: 0.7rem; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 6px; }
+        .cloud-status .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .cloud-status .dot.online { background: #4caf50; }
+        .cloud-status .dot.offline { background: #ff9800; }
+        .cloud-status .dot.syncing { background: #2196f3; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .cloud-btn { background: rgba(255,255,255,0.15); border: none; padding: 0.2rem 0.6rem; border-radius: 30px; color: white; font-size: 0.65rem; cursor: pointer; }
+        .cloud-btn:hover { background: rgba(255,255,255,0.3); }
+        .sync-status-bar { background: #f8fafc; padding: 6px 15px; font-size: 0.75rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .sync-status-bar .status { display: flex; align-items: center; gap: 8px; }
+        .sync-status-bar .status .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .sync-status-bar .status .dot.green { background: #4caf50; }
+        .sync-status-bar .status .dot.gray { background: #9e9e9e; }
+        .sync-status-bar .status .dot.yellow { background: #ff9800; animation: pulse 1s infinite; }
+        .cloud-config-modal .modal-content { max-width: 500px; }
+        .cloud-config-modal input { width: 100%; padding: 8px 12px; border: 1px solid #cbdde6; border-radius: 20px; font-size: 0.8rem; margin-bottom: 10px; }
+        .cloud-config-modal label { font-weight: 600; font-size: 0.8rem; color: #1f5e4e; display: block; margin-bottom: 4px; }
+        .cloud-config-modal .btn-primary { background: #1a6b5c; color: white; border: none; padding: 8px 20px; border-radius: 40px; cursor: pointer; font-weight: 600; }
+        .cloud-config-modal .btn-secondary { background: #e2ecf3; border: none; padding: 8px 20px; border-radius: 40px; cursor: pointer; }
+        .cloud-config-modal .form-row { margin-bottom: 12px; }
+        .backup-btn { background: rgba(255,255,255,0.15); border: none; padding: 0.2rem 0.6rem; border-radius: 30px; color: white; font-size: 0.65rem; cursor: pointer; }
+        .backup-btn:hover { background: rgba(255,255,255,0.3); }
+    </style>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+</head>
+<body data-lang="zh">
+<div class="quote-container">
+    <div class="header">
+        <h1><span class="lang-zh">🧬 灵岩 · 报价系统</span><span class="lang-en">🧬 LINGYAN · Quotation System</span></h1>
+        <div class="header-actions">
+            <div class="cloud-status" id="cloudStatus">
+                <span class="dot online" id="cloudDot"></span>
+                <span id="cloudStatusText">云端</span>
+                <button class="cloud-btn" id="cloudSyncBtn">☁️ 同步</button>
+            </div>
+            <button id="viewQuotesBtn" class="btn-view-quotes"><span class="lang-zh">📋 报价单</span><span class="lang-en">📋 Quotes</span></button>
+            <button id="langToggle" class="lang-switch"><span class="lang-zh">🌐 EN</span><span class="lang-en">🌐 中文</span></button>
+        </div>
+    </div>
+
+    <!-- 同步状态栏 -->
+    <div class="sync-status-bar" id="syncStatusBar">
+        <div class="status">
+            <span class="dot green" id="syncDot"></span>
+            <span id="syncStatusText">✅ 已连接 Airtable</span>
+        </div>
+        <span style="font-size:0.65rem;color:#888;" id="syncTimeText"></span>
+    </div>
+
+    <div id="topControlPanel">
+        <div class="collapse-header" id="collapseHeader"><span class="collapse-icon" id="collapseIcon">▲</span></div>
+        <div id="collapsibleArea" class="collapsible-content">
+            <div class="toolbar">
+                <div class="btn-group">
+                    <button id="showSelectedBtn" class="btn btn-primary"><span class="lang-zh">✨ 只显示已选</span><span class="lang-en">✨ Show Selected</span></button>
+                    <button id="showAllBtn" class="btn btn-outline"><span class="lang-zh">📋 全部</span><span class="lang-en">📋 All</span></button>
+                    <button id="resetQtyBtn" class="btn btn-outline"><span class="lang-zh">🔄 重置</span><span class="lang-en">🔄 Reset</span></button>
+                </div>
+                <div class="price-list-selector">
+                    <span class="lang-zh">💰 价格表:</span><span class="lang-en">💰 Price List:</span>
+                    <div class="price-selector-wrapper">
+                        <select id="priceTableSelect" class="price-table-dropdown"></select>
+                        <button id="dynamicDeletePriceBtn" class="delete-price-btn" title="删除当前价格表">✕</button>
+                    </div>
+                    <button id="importPriceBtn" class="import-btn"><span class="lang-zh">📁 导入(Excel/PDF/CSV)</span><span class="lang-en">📁 Import</span></button>
+                    <span id="importStatus" class="import-notice"></span>
+                </div>
+            </div>
+            <div class="search-area">
+                <div class="search-input-wrapper" style="flex:1;min-width:150px;position:relative;">
+                    <textarea id="searchProductInput" class="search-input" rows="1" placeholder="🔍 搜索产品 (支持缩写: Sema, Tirz, Reta, BPC, GHK, MOTS, NAD, HGH等)&#10;格式: 2x tirz 15mg 或 sema 5mg" style="resize:both;"></textarea>
+                </div>
+                <button id="batchQueryBtn" class="batch-query-btn"><span class="lang-zh">查询</span><span class="lang-en">Search</span></button>
+                <button id="saveQuoteBtn" class="save-quote-btn"><span class="lang-zh">💾 保存报价单</span><span class="lang-en">💾 Save Quote</span></button>
+            </div>
+            <div class="shipping-panel">
+                <div class="shipping-selector">
+                    <span class="lang-zh">🚚 运费:</span><span class="lang-en">🚚 Shipping:</span>
+                    <select id="shippingSelect">
+                        <option value="40">$40 (1-4箱 / 1-4 kits)</option>
+                        <option value="50">$50 (5-9箱 / 5-9 kits)</option>
+                        <option value="60">$60 (10-14箱 / 10-14 kits)</option>
+                        <option value="70">$70 (15-19箱 / 15-19 kits)</option>
+                        <option value="80">$80 (20+箱 / 20+ kits)</option>
+                        <option value="custom"><span class="lang-zh">自定义</span><span class="lang-en">Custom</span></option>
+                    </select>
+                    <input type="number" id="customShippingInput" class="custom-shipping-input" placeholder="0.00" step="0.01" style="display:none;">
+                </div>
+                <div class="shipping-selector"><span class="lang-zh">🏢 仓库:</span><span class="lang-en">🏢 Warehouse:</span><select id="warehouseSelect"><option value="US">美国 / US</option><option value="CA">加拿大 / CA</option><option value="CN">中国 / CN</option><option value="MIX">混合 / MIX</option></select></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <div class="column-selector" id="columnSelector">
+            <span id="columnSelectorLabel" style="font-size:0.75rem;font-weight:600;margin-right:4px;"><span class="lang-zh">显示列:</span><span class="lang-en">Show Columns:</span></span>
+            <label><input type="checkbox" data-col="0" checked disabled> ☑</label>
+            <label><input type="checkbox" data-col="1" checked> <span class="lang-zh">Cat. No</span><span class="lang-en">Cat. No</span></label>
+            <label><input type="checkbox" data-col="2" checked> <span class="lang-zh">产品</span><span class="lang-en">Product</span></label>
+            <label><input type="checkbox" data-col="3" checked> <span class="lang-zh">规格</span><span class="lang-en">Spec</span></label>
+            <label><input type="checkbox" data-col="4" checked> <span class="lang-zh">单价</span><span class="lang-en">Price</span></label>
+            <label><input type="checkbox" data-col="5" checked> <span class="lang-zh">数量</span><span class="lang-en">Qty</span></label>
+            <label><input type="checkbox" data-col="6" checked> <span class="lang-zh">小计</span><span class="lang-en">Subtotal</span></label>
+            <label><input type="checkbox" data-col="7" checked> <span class="lang-zh">备注</span><span class="lang-en">Remark</span></label>
+        </div>
+        <table class="product-table" id="productTable">
+            <thead>
+                <tr id="tableHeader">
+                    <th data-col="0" class="select-all-col"><input type="checkbox" id="selectAllCheckbox" class="select-all-checkbox"></th>
+                    <th data-col="1"><span class="lang-zh">Cat. No</span><span class="lang-en">Cat. No</span></th>
+                    <th data-col="2"><span class="lang-zh">产品</span><span class="lang-en">Product</span></th>
+                    <th data-col="3"><span class="lang-zh">规格</span><span class="lang-en">Spec</span></th>
+                    <th data-col="4"><span class="lang-zh">单价 (USD)</span><span class="lang-en">Unit Price (USD)</span></th>
+                    <th data-col="5"><span class="lang-zh">数量</span><span class="lang-en">Qty</span></th>
+                    <th data-col="6"><span class="lang-zh">小计 (USD)</span><span class="lang-en">Subtotal (USD)</span></th>
+                    <th data-col="7"><span class="lang-zh">备注</span><span class="lang-en">Remark</span></th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"><tr><td colspan="8">加载中...</td></tr>
+        </tbody></table>
+    </div>
+
+    <div class="footer-summary">
+        <div class="left-stats-area">
+            <div class="stats-row">
+                <div class="info-text" id="statsMsg">📌 全部 | 已选:0</div>
+                <div class="info-card" id="totalKitsDisplay">
+                    <span class="lang-zh">📦 总箱数:</span><span class="lang-en">📦 Total Kits:</span>
+                    <input type="number" id="kitsEditableInput" class="kits-input" value="0" min="0" step="1">
+                </div>
+            </div>
+            <div class="shipping-highlight" id="shippingEditable">
+                <span class="lang-zh">🚚 运费</span><span class="lang-en">🚚 Shipping</span>
+                <span class="value" id="shippingAmountValue">0.00 USD</span>
+            </div>
+        </div>
+        <div class="footer-right">
+            <button id="saveQuoteInlineBtn" class="btn-save-inline"><span class="lang-zh">保存</span><span class="lang-en">Save</span></button>
+            <div class="total-card">
+                <span>TOTAL</span>
+                <span class="total-number" id="grandTotalDisplay">$0.00</span>
+                <span>USD</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 报价单弹窗 -->
+<div id="quotesModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><span class="lang-zh">📋 报价单列表</span><span class="lang-en">📋 Quotation List</span></h2>
+            <button class="close-modal" id="closeModalBtn">&times;</button>
+        </div>
+        <div class="filter-bar">
+            <div class="filter-item"><label class="lang-zh">起始日期</label><label class="lang-en">Start Date</label><input type="date" id="filterDateStart"></div>
+            <div class="filter-item"><label class="lang-zh">结束日期</label><label class="lang-en">End Date</label><input type="date" id="filterDateEnd"></div>
+            <div class="filter-item"><label class="lang-zh">顾客</label><label class="lang-en">Customer</label><input type="text" id="filterCustomerName" placeholder="姓名"></div>
+            <div class="filter-item"><label class="lang-zh">国家</label><label class="lang-en">Country</label><input type="text" id="filterCountry" placeholder="国家"></div>
+            <div class="filter-item"><label class="lang-zh">运单号</label><label class="lang-en">Tracking</label><input type="text" id="filterTrackingNo" placeholder="单号"></div>
+            <div class="filter-item"><label class="lang-zh">支付方式</label><label class="lang-en">Payment</label><select id="filterPaymentMethod"><option value="">全部</option><option value="Bitcoin">Bitcoin</option><option value="USDT">USDT</option><option value="Bank Transfer">Bank Transfer</option><option value="Not Dealed">未成交</option></select></div>
+            <div class="filter-item"><label class="lang-zh">成交状态</label><label class="lang-en">Status</label><select id="filterDealStatus"><option value="">全部</option><option value="成交">已成交</option><option value="未成交">未成交</option><option value="部分付款">部分付款</option></select></div>
+            <button id="searchFiltersBtn" class="btn-search-filter"><span class="lang-zh">🔍查询</span><span class="lang-en">🔍Search</span></button>
+            <button id="clearFiltersBtn" class="btn-clear-filter"><span class="lang-zh">清除</span><span class="lang-en">Clear</span></button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="quotes-table" id="quotesTable">
+                <thead>
+                    <tr>
+                        <th class="lang-zh">日期</th><th class="lang-en">Date</th>
+                        <th class="lang-zh">顾客</th><th class="lang-en">Customer</th>
+                        <th class="lang-zh">国家</th><th class="lang-en">Country</th>
+                        <th class="lang-zh">仓库</th><th class="lang-en">Warehouse</th>
+                        <th class="lang-zh">产品清单</th><th class="lang-en">Products</th>
+                        <th class="lang-zh">运费</th><th class="lang-en">Shipping</th>
+                        <th class="lang-zh">总金额</th><th class="lang-en">Total</th>
+                        <th class="lang-zh">运单号</th><th class="lang-en">Tracking</th>
+                        <th class="lang-zh">支付方式</th><th class="lang-en">Payment</th>
+                        <th class="lang-zh">实付</th><th class="lang-en">Paid</th>
+                        <th class="lang-zh">成交状态</th><th class="lang-en">Deal Status</th>
+                        <th class="lang-zh">付款凭证</th><th class="lang-en">Proof</th>
+                        <th class="lang-zh">备注</th><th class="lang-en">Remark</th>
+                        <th class="lang-zh">编辑</th><th class="lang-en">Edit</th>
+                    </tr>
+                </thead>
+                <tbody id="quotesTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 图片预览 -->
+<div id="imagePreviewModal" class="image-preview-modal">
+    <div class="image-preview-content">
+        <img id="previewImage" src="">
+        <button style="margin-top:8px;width:100%;" onclick="closeImagePreview()"><span class="lang-zh">关闭</span><span class="lang-en">Close</span></button>
+    </div>
+</div>
+
+<script>
+// ================================================================
+// ⭐ 你的 Airtable 凭证已硬编码在此
+// ================================================================
+const AIRTABLE_CONFIG = {
+    token: 'patPlw0HN8rJfOsRg.997a75ebb900f0f7c6655da1c309faa821721dbcbcc99583fe304c32975712ae',
+    baseId: 'appcpjJ4fGikWjEWH',
+    tableId: 'tblPSAoX5T0WJWivP'
+};
+
+const STORAGE_KEY = 'lingyan_airtable_data';
+const CONFIG_KEY = 'lingyan_airtable_config';
+
+// ================================================================
+// 全局状态
+// ================================================================
+let priceLists = [];
+let currentPriceListId = null;
+let products = [];
+let quantities = new Map();
+let displayMode = "all";
+let currentShippingCost = 40;
+let searchKeyword = "";
+let quotations = [];
+let editingQuoteId = null;
+let currentLang = 'zh';
+let productRemarks = new Map();
+let searchOrder = [];
+let columnVisibility = {0:true,1:true,2:true,3:true,4:true,5:true,6:true,7:true};
+let isUpdatingKits = false;
+let isConnected = false;
+let isLoading = false;
+let isSyncing = false;
+
+// ================================================================
+// Airtable API 操作
+// ================================================================
+function getAirtableHeaders() {
+    return {
+        'Authorization': `Bearer ${AIRTABLE_CONFIG.token}`,
+        'Content-Type': 'application/json'
+    };
+}
+
+async function loadProductsFromAirtable() {
+    const url = `https://api.airtable.com/v0/${AIRTABLE_CONFIG.baseId}/${AIRTABLE_CONFIG.tableId}?maxRecords=1000`;
+    const response = await fetch(url, { headers: getAirtableHeaders() });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || `HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.records.map(record => ({
+        id: record.id,
+        name: record.fields.Name || record.fields['产品'] || '',
+        specification: record.fields.Spec || record.fields['规格'] || '',
+        displaySpec: record.fields.DisplaySpec || record.fields['规格'] || '',
+        price: record.fields.Price || record.fields['单价 (USD)'] || 0,
+        catno: record.fields.CatNo || record.fields['Cat. No'] || '',
+        checked: false,
+        _airtableId: record.id
+    }));
+}
+
+async function syncProductsToAirtable(productsData) {
+    const records = productsData.map(p => ({
+        fields: {
+            'Cat. No': p.catno || '',
+            '产品': p.name || '',
+            '规格': p.specification || '',
+            '单价 (USD)': p.price || 0,
+            '数量': 0,
+            '小计 (USD)': 0,
+            '备注': ''
+        }
+    }));
+    
+    // 分批上传（Airtable 单次限制 10 条）
+    const batchSize = 10;
+    let allRecords = [];
+    
+    for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
+        const url = `https://api.airtable.com/v0/${AIRTABLE_CONFIG.baseId}/${AIRTABLE_CONFIG.tableId}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: getAirtableHeaders(),
+            body: JSON.stringify({ records: batch })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error?.message || `上传失败 HTTP ${response.status}`);
+        }
+        const result = await response.json();
+        allRecords = allRecords.concat(result.records || []);
+    }
+    return allRecords;
+}
+
+async function loadQuotationsFromAirtable() {
+    // 报价单使用独立表 - 如果不存在则返回空
+    const quotesTableId = AIRTABLE_CONFIG.tableId.replace('tbl', 'tbl_quotes');
+    try {
+        const url = `https://api.airtable.com/v0/${AIRTABLE_CONFIG.baseId}/${quotesTableId}?maxRecords=1000`;
+        const response = await fetch(url, { headers: getAirtableHeaders() });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.records.map(r => ({
+            id: r.id,
+            date: r.fields['日期'] || '',
+            customerName: r.fields['顾客'] || '',
+            country: r.fields['国家'] || '',
+            warehouse: r.fields['仓库'] || '',
+            shippingCost: r.fields['运费'] || 0,
+            totalKits: r.fields['总箱数'] || 0,
+            productTotal: r.fields['产品总价'] || 0,
+            grandTotal: r.fields['总金额'] || 0,
+            items: r.fields['产品清单'] ? JSON.parse(r.fields['产品清单']) : [],
+            trackingNumber: r.fields['运单号'] || '',
+            paymentMethod: r.fields['支付方式'] || '',
+            amountPaid: r.fields['实付'] || 0,
+            dealStatus: r.fields['成交状态'] || '未成交',
+            remark: r.fields['备注'] || '',
+            proofImages: r.fields['付款凭证'] ? JSON.parse(r.fields['付款凭证']) : []
+        }));
+    } catch(e) {
+        return [];
+    }
+}
+
+// ================================================================
+// 数据持久化
+// ================================================================
+function saveToLocal(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadFromLocal() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+}
+
+// ================================================================
+// 核心同步函数
+// ================================================================
+async function syncToCloud() {
+    if (isSyncing) return;
+    isSyncing = true;
+    updateSyncStatus(true, true);
+    
+    try {
+        const state = {
+            products: products.map(p => ({...p})),
+            quantities: Array.from(quantities.entries()),
+            productRemarks: Array.from(productRemarks.entries()),
+            quotations: quotations,
+            currentShippingCost: currentShippingCost,
+            displayMode: displayMode,
+            columnVisibility: columnVisibility,
+            currentLang: currentLang,
+            timestamp: Date.now()
+        };
+        
+        saveToLocal(state);
+        
+        // 上传产品到 Airtable
+        await syncProductsToAirtable(products);
+        
+        updateSyncStatus(true, false);
+        document.getElementById('syncTimeText').textContent = 
+            currentLang === 'zh' ? `最后同步: ${new Date().toLocaleString()}` : `Last sync: ${new Date().toLocaleString()}`;
+        console.log('✅ 同步到云端成功');
+        return true;
+    } catch(e) {
+        console.error('同步失败:', e);
+        updateSyncStatus(false, false);
+        throw e;
+    } finally {
+        isSyncing = false;
+    }
+}
+
+async function loadFromCloud() {
+    if (isSyncing) return;
+    isSyncing = true;
+    updateSyncStatus(true, true);
+    
+    try {
+        // 从 Airtable 加载产品
+        const airtableProducts = await loadProductsFromAirtable();
+        
+        if (airtableProducts.length > 0) {
+            // 保留现有数量和备注
+            const oldQuantities = new Map(quantities);
+            const oldRemarks = new Map(productRemarks);
+            
+            products = airtableProducts;
+            products.forEach(p => {
+                if (oldQuantities.has(p.id)) {
+                    quantities.set(p.id, oldQuantities.get(p.id));
+                } else {
+                    quantities.set(p.id, 0);
+                }
+                if (oldRemarks.has(p.id)) {
+                    productRemarks.set(p.id, oldRemarks.get(p.id));
+                } else {
+                    productRemarks.set(p.id, '');
+                }
+            });
+        }
+        
+        // 加载报价单
+        const airtableQuotes = await loadQuotationsFromAirtable();
+        if (airtableQuotes.length > 0) {
+            quotations = airtableQuotes;
+        }
+        
+        // 从本地缓存恢复其他状态
+        const localData = loadFromLocal();
+        if (localData) {
+            if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
+            if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
+            if (localData.currentLang) currentLang = localData.currentLang;
+        }
+        
+        isConnected = true;
+        updateSyncStatus(true, false);
+        renderTable();
+        updateFooter();
+        document.getElementById('syncTimeText').textContent = 
+            currentLang === 'zh' ? `最后同步: ${new Date().toLocaleString()}` : `Last sync: ${new Date().toLocaleString()}`;
+        console.log('✅ 从云端加载成功');
+        return true;
+    } catch(e) {
+        console.error('加载云端数据失败:', e);
+        isConnected = false;
+        updateSyncStatus(false, false);
+        
+        // 如果云端失败，尝试从本地加载
+        const localData = loadFromLocal();
+        if (localData && localData.products && localData.products.length > 0) {
+            products = localData.products;
+            quantities = new Map(localData.quantities || []);
+            productRemarks = new Map(localData.productRemarks || []);
+            quotations = localData.quotations || [];
+            if (localData.currentShippingCost !== undefined) currentShippingCost = localData.currentShippingCost;
+            if (localData.columnVisibility) columnVisibility = localData.columnVisibility;
+            if (localData.currentLang) currentLang = localData.currentLang;
+            renderTable();
+            updateFooter();
+            console.log('📦 使用本地缓存数据');
+            return false;
+        }
+        return false;
+    } finally {
+        isSyncing = false;
+    }
+}
+
+// ================================================================
+// 同步状态更新
+// ================================================================
+function updateSyncStatus(connected, syncing = false) {
+    const dot = document.getElementById('syncDot');
+    const text = document.getElementById('syncStatusText');
+    const cloudDot = document.getElementById('cloudDot');
+    const cloudText = document.getElementById('cloudStatusText');
+    
+    if (syncing) {
+        dot.className = 'dot yellow';
+        text.textContent = currentLang === 'zh' ? '⏳ 同步中...' : '⏳ Syncing...';
+        cloudDot.className = 'dot syncing';
+        cloudText.textContent = currentLang === 'zh' ? '同步中...' : 'Syncing...';
+        return;
+    }
+    
+    if (connected) {
+        dot.className = 'dot green';
+        text.textContent = currentLang === 'zh' ? '✅ 已连接 Airtable' : '✅ Connected to Airtable';
+        cloudDot.className = 'dot online';
+        cloudText.textContent = currentLang === 'zh' ? '云端' : 'Cloud';
+        isConnected = true;
+    } else {
+        dot.className = 'dot gray';
+        text.textContent = currentLang === 'zh' ? '⚠️ 离线模式 (使用本地数据)' : '⚠️ Offline (Using local data)';
+        cloudDot.className = 'dot offline';
+        cloudText.textContent = currentLang === 'zh' ? '离线' : 'Offline';
+        isConnected = false;
+    }
+}
+
+// ================================================================
+// 自动同步函数（修改数据后自动触发）
+// ================================================================
+async function autoSyncAfterChange() {
+    if (!isConnected) {
+        // 如果未连接，只保存到本地
+        const state = {
+            products: products.map(p => ({...p})),
+            quantities: Array.from(quantities.entries()),
+            productRemarks: Array.from(productRemarks.entries()),
+            quotations: quotations,
+            currentShippingCost: currentShippingCost,
+            displayMode: displayMode,
+            columnVisibility: columnVisibility,
+            currentLang: currentLang,
+            timestamp: Date.now()
+        };
+        saveToLocal(state);
+        return;
+    }
+    
+    try {
+        await syncToCloud();
+    } catch(e) {
+        console.warn('自动同步失败，已保存到本地:', e);
+        // 即使同步失败，也已经保存到本地
+    }
+}
+
+// ================================================================
+// 初始数据
+// ================================================================
+function initDefaultProducts() {
+    const defaultData = [
+        ["5AM-5M", "5-Amino-1mq", "5mg*10vials", 53],
+        ["ACE-XX", "Acetic acid water", "10ml*10vials", 20],
+        ["AOD-5M", "AOD9604", "5mg*10vials", 95],
+        ["BAO-XX", "BA05 bac.water(Benzyl Alcohol)", "5ml*10vials", 15],
+        ["BAC-XX", "BAC Water(Benzyl Alcohol)", "10ml*10vials", 20],
+        ["BPC-5M", "BPC157", "5mg*10vials", 53],
+        ["BPC-10M", "BPC157", "10mg*10vials", 72],
+        ["CAG-5M", "Cagrilintide", "5mg*10vials", 110],
+        ["CAG-10M", "Cagrilintide", "10mg*10vials", 180],
+        ["HGH-10I", "HGH", "10iu*10vials", 60],
+        ["HGH-20I", "HGH", "20iu*10vials", 105],
+        ["RET-5M", "Retatrutide", "5mg*10vials", 80],
+        ["RET-10M", "Retatrutide", "10mg*10vials", 100],
+        ["RET-20M", "Retatrutide", "20mg*10vials", 175],
+        ["SEM-5M", "Semaglutide", "5mg*10vials", 55],
+        ["SEM-10M", "Semaglutide", "10mg*10vials", 70],
+        ["TIR-5M", "Tirzepatide", "5mg*10vials", 55],
+        ["TIR-10M", "Tirzepatide", "10mg*10vials", 80],
+        ["TIR-15M", "Tirzepatide", "15mg*10vials", 88],
+        ["TB-5M", "TB-500", "5mg*10vials", 75]
+    ];
+    return defaultData.map(([catno, name, spec, price], index) => ({
+        id: 'rec' + Date.now() + '_' + index,
+        catno: catno,
+        name: name,
+        specification: spec,
+        displaySpec: spec,
+        price: price,
+        checked: false
+    }));
+}
+
+// ================================================================
+// 核心业务逻辑
+// ================================================================
+function getTotalKits() {
+    let s = 0;
+    for (let p of products) {
+        if (p.checked) {
+            s += quantities.get(p.id) || 0;
+        }
+    }
+    return s;
+}
+
+function suggestShipping(kits) {
+    if (kits <= 4) return 40;
+    if (kits <= 9) return 50;
+    if (kits <= 14) return 60;
+    if (kits <= 19) return 70;
+    return 80;
+}
+
+function compute() {
+    let pt = 0, kits = 0;
+    for (let p of products) {
+        if (p.checked) {
+            let q = quantities.get(p.id) || 0;
+            pt += q * p.price;
+            kits += q;
+        }
+    }
+    return { productTotal: pt, totalKits: kits };
+}
+
+function getFiltered() {
+    let filtered = [];
+    if (displayMode === 'selected') {
+        filtered = products.filter(p => p.checked);
+    } else {
+        if (searchOrder.length > 0) {
+            const orderMap = new Map();
+            searchOrder.forEach((id, idx) => orderMap.set(id, idx));
+            filtered = products.filter(p => orderMap.has(p.id));
+            filtered.sort((a, b) => (orderMap.get(a.id) || 999) - (orderMap.get(b.id) || 999));
+            const remaining = products.filter(p => !orderMap.has(p.id));
+            filtered = filtered.concat(remaining);
+        } else {
+            filtered = [...products];
+        }
+    }
+    if (searchKeyword.trim()) {
+        let kw = searchKeyword.trim().toLowerCase();
+        filtered = filtered.filter(p => p.name.toLowerCase().includes(kw) || p.specification.toLowerCase().includes(kw));
+    }
+    return filtered;
+}
+
+function updateFooter() {
+    let { productTotal, totalKits } = compute();
+    let grand = productTotal + currentShippingCost;
+    document.getElementById('grandTotalDisplay').innerText = '$' + grand.toFixed(0);
+    
+    const kitsInput = document.getElementById('kitsEditableInput');
+    if (kitsInput && !isUpdatingKits) kitsInput.value = totalKits;
+    
+    document.getElementById('shippingAmountValue').innerHTML = `${currentShippingCost.toFixed(0)} USD`;
+    
+    let selCnt = products.filter(p => p.checked).length;
+    let modeTxt = displayMode === 'all' ? (currentLang === 'zh' ? '全部' : 'All') : (currentLang === 'zh' ? '仅已选' : 'Selected');
+    document.getElementById('statsMsg').innerHTML = `📌 ${modeTxt} | ${currentLang === 'zh' ? '已选' : 'Sel'}:${selCnt}`;
+}
+
+function renderTable() {
+    let list = getFiltered();
+    if (list.length === 0) {
+        document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;"><span class="lang-zh">✨ 暂无产品</span><span class="lang-en">✨ No products</span></td></tr>';
+        updateFooter();
+        return;
+    }
+    let rows = '';
+    for (let p of list) {
+        let q = quantities.get(p.id) || 0;
+        let remark = productRemarks.get(p.id) || '';
+        const displaySpec = p.displaySpec || p.specification;
+        rows += `<tr>
+            <td data-col="0" class="checkbox-col" style="vertical-align:middle;text-align:center;"><input type="checkbox" class="product-checkbox" data-id="${p.id}" ${p.checked?'checked':''}></td>
+            <td data-col="1" style="vertical-align:middle;text-align:center;"><span class="catno-cell">${escapeHtml(p.catno)}</span></td>
+            <td data-col="2" style="vertical-align:middle;text-align:center;"><span class="product-name-cell">${escapeHtml(p.name)}<span class="fullname-tooltip">${escapeHtml(p.name)}</span></span></td>
+            <td data-col="3" style="vertical-align:middle;text-align:center;"><span class="spec-cell">${escapeHtml(displaySpec)}</span></td>
+            <td data-col="4" style="vertical-align:middle;text-align:center;"><input type="number" class="price-input" data-id="${p.id}" value="${p.price}" step="1" min="0"></td>
+            <td data-col="5" style="vertical-align:middle;text-align:center;"><input type="number" class="qty-input" data-id="${p.id}" value="${q}" min="0" step="1"></td>
+            <td data-col="6" style="vertical-align:middle;text-align:center;"><span class="item-total" id="st-${p.id}">$${(q * p.price).toFixed(0)}</span></td>
+            <td data-col="7" style="vertical-align:middle;text-align:center;"><input type="text" class="remark-input" data-id="${p.id}" value="${escapeHtml(remark)}" placeholder="备注"></td>
+        </tr>`;
+    }
+    document.getElementById('tableBody').innerHTML = rows;
+    attachEvents();
+    updateFooter();
+    applyColumnVisibility();
+}
+
+function attachEvents() {
+    document.querySelectorAll('.product-checkbox').forEach(cb => {
+        let pid = cb.dataset.id;
+        cb.onchange = async () => {
+            let p = products.find(p => p.id === pid);
+            if (p) {
+                p.checked = cb.checked;
+                if (p.checked && (quantities.get(p.id) || 0) === 0) {
+                    quantities.set(p.id, 1);
+                    renderTable();
+                    await autoSyncAfterChange();
+                    return;
+                }
+            }
+            renderTable();
+            updateFooter();
+            await autoSyncAfterChange();
+        };
+    });
+
+    document.querySelectorAll('.qty-input').forEach(inp => {
+        let pid = inp.dataset.id;
+        inp.oninput = async () => {
+            let nv = parseInt(inp.value) || 0;
+            if (nv < 0) nv = 0;
+            quantities.set(pid, nv);
+            let prod = products.find(p => p.id === pid);
+            if (prod) {
+                document.getElementById(`st-${prod.id}`).innerText = `$${(nv * prod.price).toFixed(0)}`;
+            }
+            updateFooter();
+        };
+        inp.onchange = async () => {
+            await autoSyncAfterChange();
+        };
+    });
+
+    document.querySelectorAll('.price-input').forEach(inp => {
+        let pid = inp.dataset.id;
+        inp.onchange = async () => {
+            let nv = Math.round(parseFloat(inp.value));
+            if (isNaN(nv) || nv < 0) nv = 0;
+            let prod = products.find(p => p.id === pid);
+            if (prod) {
+                prod.price = nv;
+                let q = quantities.get(pid) || 0;
+                document.getElementById(`st-${prod.id}`).innerText = `$${(q * nv).toFixed(0)}`;
+                updateFooter();
+                await autoSyncAfterChange();
+            }
+        };
+    });
+
+    document.querySelectorAll('.remark-input').forEach(inp => {
+        let pid = inp.dataset.id;
+        inp.onchange = async () => {
+            productRemarks.set(pid, inp.value);
+            await autoSyncAfterChange();
+        };
+    });
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+}
+
+function bindSelectAll() {
+    const sel = document.getElementById('selectAllCheckbox');
+    if (sel) sel.onchange = async (e) => {
+        const c = e.target.checked;
+        getFiltered().forEach(p => p.checked = c);
+        renderTable();
+        updateFooter();
+        await autoSyncAfterChange();
+    };
+}
+
+function applyColumnVisibility() {
+    document.querySelectorAll('#productTable thead th').forEach(th => {
+        const col = th.getAttribute('data-col');
+        if (col !== null) {
+            const idx = parseInt(col);
+            if (idx === 0) return;
+            if (columnVisibility[idx]) th.classList.remove('hidden-col');
+            else th.classList.add('hidden-col');
+        }
+    });
+    document.querySelectorAll('#productTable tbody td').forEach(td => {
+        const col = td.getAttribute('data-col');
+        if (col !== null) {
+            const idx = parseInt(col);
+            if (idx === 0) return;
+            if (columnVisibility[idx]) td.classList.remove('hidden-col');
+            else td.classList.add('hidden-col');
+        }
+    });
+    document.querySelectorAll('.column-selector input[type="checkbox"]').forEach(cb => {
+        const col = parseInt(cb.dataset.col);
+        if (col === 0) return;
+        cb.checked = columnVisibility[col] !== false;
+    });
+}
+
+function resetAll() {
+    for (let p of products) {
+        p.checked = false;
+        quantities.set(p.id, 0);
+        productRemarks.set(p.id, '');
+    }
+    currentShippingCost = 40;
+    document.getElementById('shippingSelect').value = '40';
+    document.getElementById('shippingSelect').dataset.userSelected = false;
+    displayMode = 'all';
+    searchKeyword = '';
+    searchOrder = [];
+    document.getElementById('searchProductInput').value = '';
+    renderTable();
+    updateFooter();
+    autoSyncAfterChange();
+}
+
+// ================================================================
+// 报价单功能
+// ================================================================
+function saveQuotation() {
+    let customer = prompt(currentLang === 'zh' ? "顾客姓名:" : "Customer name:", "Guest");
+    if (customer === null) return;
+    let country = prompt(currentLang === 'zh' ? "国家:" : "Country:", "US");
+    if (country === null) country = "";
+    let selected = products.filter(p => p.checked && (quantities.get(p.id) || 0) > 0);
+    if (selected.length === 0) {
+        alert(currentLang === 'zh' ? "请选择产品并设置数量" : "Please select products and set quantities");
+        return;
+    }
+    let items = selected.map(p => ({
+        name: p.name,
+        spec: p.specification,
+        catno: p.catno,
+        qty: quantities.get(p.id),
+        price: p.price,
+        subtotal: quantities.get(p.id) * p.price,
+        remark: productRemarks.get(p.id) || ''
+    }));
+    let { productTotal, totalKits } = compute();
+    let warehouseText = document.getElementById('warehouseSelect').options[document.getElementById('warehouseSelect').selectedIndex]?.text.split('/')[0].trim();
+    let newQuote = {
+        id: Date.now().toString(),
+        date: new Date().toISOString().slice(0, 10),
+        customerName: customer,
+        country: country,
+        warehouse: warehouseText,
+        shippingCost: currentShippingCost,
+        totalKits: totalKits,
+        productTotal: productTotal,
+        grandTotal: productTotal + currentShippingCost,
+        items: items,
+        trackingNumber: "",
+        paymentMethod: "",
+        proofImages: [],
+        amountPaid: 0,
+        dealStatus: "未成交",
+        remark: ""
+    };
+    if (editingQuoteId) {
+        let idx = quotations.findIndex(q => q.id === editingQuoteId);
+        if (idx !== -1) {
+            newQuote.id = editingQuoteId;
+            newQuote.date = quotations[idx].date;
+            quotations[idx] = newQuote;
+            alert(currentLang === 'zh' ? "更新覆盖" : "Updated");
+            editingQuoteId = null;
+            if (document.getElementById('quotesModal').classList.contains('active')) renderQuotesTable();
+        } else {
+            quotations.unshift(newQuote);
+            alert(currentLang === 'zh' ? "保存成功" : "Saved");
+            editingQuoteId = null;
+        }
+    } else {
+        quotations.unshift(newQuote);
+        alert(currentLang === 'zh' ? "保存成功" : "Saved");
+    }
+    autoSyncAfterChange();
+}
+
+function renderQuotesTable() {
+    let start = document.getElementById('filterDateStart').value,
+        end = document.getElementById('filterDateEnd').value;
+    let cust = document.getElementById('filterCustomerName').value.toLowerCase(),
+        cntry = document.getElementById('filterCountry').value.toLowerCase();
+    let track = document.getElementById('filterTrackingNo').value.toLowerCase(),
+        pay = document.getElementById('filterPaymentMethod').value,
+        stat = document.getElementById('filterDealStatus').value;
+    let filtered = quotations.filter(q => {
+        if (start && q.date < start) return false;
+        if (end && q.date > end) return false;
+        if (cust && !q.customerName.toLowerCase().includes(cust)) return false;
+        if (cntry && !(q.country || '').toLowerCase().includes(cntry)) return false;
+        if (track && !(q.trackingNumber || '').toLowerCase().includes(track)) return false;
+        if (pay && q.paymentMethod !== pay) return false;
+        if (stat && q.dealStatus !== stat) return false;
+        return true;
+    });
+    let tbody = document.getElementById('quotesTableBody');
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:15px;"><span class="lang-zh">暂无报价单</span><span class="lang-en">No quotes</span></td></tr>';
+        return;
+    }
+    let html = '';
+    for (let q of filtered) {
+        let prodHtml = `<ul class="quote-products-list">${q.items.map(i => `<li><strong>${escapeHtml(i.name)}</strong> (${escapeHtml(i.catno || '')}) x${i.qty} @$${i.price}=$${i.subtotal} ${i.remark ? '(' + escapeHtml(i.remark) + ')' : ''}</li>`).join('')}</ul>`;
+        let trackDisplay = q.trackingNumber ? `<a class="tracking-link" onclick="openTracking('${escapeHtml(q.trackingNumber)}')">${escapeHtml(q.trackingNumber)}</a>` : '—';
+        html += `<tr><td>${q.date}</td><td>${escapeHtml(q.customerName)}</td><td>${escapeHtml(q.country || '')}</td><td>${escapeHtml(q.warehouse)}</td><td style="min-width:160px;">${prodHtml}</td><td>$${q.shippingCost.toFixed(0)}</td><td>$${q.grandTotal.toFixed(0)}</td>
+        <td><input type="text" class="tracking-input" data-id="${q.id}" value="${escapeHtml(q.trackingNumber || '')}" onchange="updateTracking('${q.id}', this.value)"><br>${trackDisplay}</td>
+        <td><select class="payment-select" data-id="${q.id}" onchange="updatePayment('${q.id}', this.value)"><option value="">选择</option><option value="Bitcoin" ${q.paymentMethod === 'Bitcoin' ? 'selected' : ''}>Bitcoin</option><option value="USDT" ${q.paymentMethod === 'USDT' ? 'selected' : ''}>USDT</option><option value="Bank Transfer" ${q.paymentMethod === 'Bank Transfer' ? 'selected' : ''}>Bank Transfer</option><option value="Not Dealed" ${q.paymentMethod === 'Not Dealed' ? 'selected' : ''}>未成交</option></select></td>
+        <td><input type="number" class="amount-paid-input" data-id="${q.id}" value="${q.amountPaid || 0}" step="0.01" onchange="updateAmountPaid('${q.id}', this.value)"></td>
+        <td><select class="payment-select" data-id="${q.id}" onchange="updateDealStatus('${q.id}', this.value)"><option value="未成交" ${q.dealStatus === '未成交' ? 'selected' : ''}>未成交</option><option value="成交" ${q.dealStatus === '成交' ? 'selected' : ''}>成交</option><option value="部分付款" ${q.dealStatus === '部分付款' ? 'selected' : ''}>部分付款</option></select></td>
+        <td><div id="proof-editor-${q.id}" style="min-width:130px;"></div></td>
+        <td><input type="text" class="remark-input-quote" data-id="${q.id}" value="${escapeHtml(q.remark || '')}" onchange="updateRemark('${q.id}', this.value)"></td>
+        <td><button class="edit-quote-btn" onclick="editQuote('${q.id}')">✏️<span class="lang-zh">编辑</span><span class="lang-en">Edit</span></button></td>
+        </tr>`;
+    }
+    tbody.innerHTML = html;
+}
+
+function editQuote(quoteId) {
+    let q = quotations.find(q => q.id === quoteId);
+    if (!q) return;
+    for (let p of products) {
+        quantities.set(p.id, 0);
+        p.checked = false;
+        productRemarks.set(p.id, '');
+    }
+    for (let it of q.items) {
+        let prod = products.find(p => p.name === it.name && p.specification === it.spec);
+        if (prod) {
+            quantities.set(prod.id, it.qty);
+            prod.checked = true;
+            prod.price = it.price;
+            productRemarks.set(prod.id, it.remark || '');
+        }
+    }
+    if (q.shippingCost) {
+        currentShippingCost = q.shippingCost;
+        document.getElementById('shippingSelect').value = 'custom';
+        handleCustomShippingDisplay(true, currentShippingCost);
+    }
+    displayMode = 'all';
+    renderTable();
+    updateFooter();
+    document.getElementById('quotesModal').classList.remove('active');
+    editingQuoteId = quoteId;
+    alert(`${currentLang === 'zh' ? '已加载' : 'Loaded'}: ${q.customerName}`);
+}
+
+function openTracking(num) {
+    if (num) window.open(`https://www.track718.us/zh-CN/detail?nums=${encodeURIComponent(num)}`, '_blank');
+}
+
+function updateTracking(id, val) {
+    let q = quotations.find(q => q.id === id);
+    if (q) { q.trackingNumber = val; renderQuotesTable(); autoSyncAfterChange(); }
+}
+
+function updatePayment(id, val) {
+    let q = quotations.find(q => q.id === id);
+    if (q) { q.paymentMethod = val; renderQuotesTable(); autoSyncAfterChange(); }
+}
+
+function updateAmountPaid(id, val) {
+    let q = quotations.find(q => q.id === id);
+    if (q) {
+        q.amountPaid = parseFloat(val) || 0;
+        if (q.amountPaid >= q.grandTotal) q.dealStatus = "成交";
+        else if (q.amountPaid > 0) q.dealStatus = "部分付款";
+        else q.dealStatus = "未成交";
+        renderQuotesTable();
+        autoSyncAfterChange();
+    }
+}
+
+function updateDealStatus(id, val) {
+    let q = quotations.find(q => q.id === id);
+    if (q) { q.dealStatus = val; renderQuotesTable(); autoSyncAfterChange(); }
+}
+
+function updateRemark(id, val) {
+    let q = quotations.find(q => q.id === id);
+    if (q) { q.remark = val; renderQuotesTable(); autoSyncAfterChange(); }
+}
+
+function showModal() {
+    document.getElementById('quotesModal').classList.add('active');
+    renderQuotesTable();
+}
+
+function searchWithFilters() { renderQuotesTable(); }
+
+function clearFilters() {
+    document.getElementById('filterDateStart').value = '';
+    document.getElementById('filterDateEnd').value = '';
+    document.getElementById('filterCustomerName').value = '';
+    document.getElementById('filterCountry').value = '';
+    document.getElementById('filterTrackingNo').value = '';
+    document.getElementById('filterPaymentMethod').value = '';
+    document.getElementById('filterDealStatus').value = '';
+    renderQuotesTable();
+}
+
+function closeImagePreview() {
+    document.getElementById('imagePreviewModal').classList.remove('active');
+}
+
+function handleCustomShippingDisplay(show, initialValue = null) {
+    const selectEl = document.getElementById('shippingSelect');
+    const customInput = document.getElementById('customShippingInput');
+    if (show) {
+        selectEl.style.display = 'none';
+        customInput.style.display = 'inline-block';
+        if (initialValue !== null) customInput.value = initialValue;
+        else customInput.value = currentShippingCost;
+        customInput.focus();
+        const finishCustomEdit = () => {
+            let newVal = parseFloat(customInput.value);
+            if (isNaN(newVal)) newVal = 0;
+            currentShippingCost = newVal;
+            updateFooter();
+            selectEl.style.display = 'inline-block';
+            customInput.style.display = 'none';
+            selectEl.value = 'custom';
+            selectEl.dataset.userSelected = 'true';
+            autoSyncAfterChange();
+        };
+        customInput.onblur = finishCustomEdit;
+        customInput.onkeypress = (e) => { if (e.key === 'Enter') { e.preventDefault(); finishCustomEdit(); } };
+    } else {
+        selectEl.style.display = 'inline-block';
+        customInput.style.display = 'none';
+    }
+}
+
+function autoResizeTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+}
+
+function applyLanguage(lang) {
+    currentLang = lang;
+    document.body.setAttribute('data-lang', lang);
+    renderTable();
+    updateFooter();
+    if (document.getElementById('quotesModal').classList.contains('active')) renderQuotesTable();
+    const shippingOpts = document.getElementById('shippingSelect').options;
+    for (let i = 0; i < shippingOpts.length; i++) {
+        if (shippingOpts[i].value === 'custom') shippingOpts[i].text = lang === 'zh' ? '自定义' : 'Custom';
+        else if (shippingOpts[i].value !== 'custom') {
+            let val = shippingOpts[i].value;
+            if (lang === 'zh') shippingOpts[i].text = `$${val} (${val <= 40 ? '1-4箱' : val <= 50 ? '5-9箱' : val <= 60 ? '10-14箱' : val <= 70 ? '15-19箱' : '20+箱'})`;
+            else shippingOpts[i].text = `$${val} (${val <= 40 ? '1-4 kits' : val <= 50 ? '5-9 kits' : val <= 60 ? '10-14 kits' : val <= 70 ? '15-19 kits' : '20+ kits'})`;
+        }
+    }
+    const label = document.getElementById('columnSelectorLabel');
+    if (label) {
+        label.querySelector('.lang-zh').textContent = '显示列:';
+        label.querySelector('.lang-en').textContent = 'Show Columns:';
+    }
+    const colLabels = document.querySelectorAll('.column-selector label');
+    const colTexts = [
+        ['Cat. No', 'Cat. No'],
+        ['产品', 'Product'],
+        ['规格', 'Spec'],
+        ['单价', 'Price'],
+        ['数量', 'Qty'],
+        ['小计', 'Subtotal'],
+        ['备注', 'Remark']
+    ];
+    colLabels.forEach((label, idx) => {
+        if (idx === 0) return;
+        const span = label.querySelector('span');
+        if (span && idx <= colTexts.length) {
+            const texts = colTexts[idx - 1];
+            span.textContent = lang === 'zh' ? texts[0] : texts[1];
+        }
+    });
+}
+
+// ================================================================
+// 初始化
+// ================================================================
+async function init() {
+    console.log('🚀 灵岩报价系统启动中...');
+    console.log('📦 Airtable 凭证已硬编码');
+    console.log('📋 Base ID:', AIRTABLE_CONFIG.baseId);
+    console.log('📋 Table ID:', AIRTABLE_CONFIG.tableId);
+    
+    // 尝试从云端加载数据
+    isLoading = true;
+    try {
+        await loadFromCloud();
+        isConnected = true;
+        updateSyncStatus(true);
+    } catch(e) {
+        console.warn('云端加载失败，使用本地数据:', e);
+        isConnected = false;
+        updateSyncStatus(false);
+        
+        // 如果没有任何数据，使用默认数据
+        if (products.length === 0) {
+            products = initDefaultProducts();
+            products.forEach(p => {
+                quantities.set(p.id, 0);
+                productRemarks.set(p.id, '');
+            });
+            renderTable();
+            updateFooter();
+        }
+    }
+    isLoading = false;
+    
+    // 如果加载后还是没有数据，使用默认数据
+    if (products.length === 0) {
+        products = initDefaultProducts();
+        products.forEach(p => {
+            quantities.set(p.id, 0);
+            productRemarks.set(p.id, '');
+        });
+        renderTable();
+        updateFooter();
+    }
+    
+    // 绑定事件
+    document.getElementById('showSelectedBtn').onclick = () => {
+        displayMode = 'selected';
+        renderTable();
+        updateFooter();
+    };
+    document.getElementById('showAllBtn').onclick = () => {
+        displayMode = 'all';
+        renderTable();
+        updateFooter();
+    };
+    document.getElementById('resetQtyBtn').onclick = resetAll;
+    document.getElementById('saveQuoteBtn').onclick = saveQuotation;
+    document.getElementById('saveQuoteInlineBtn').onclick = saveQuotation;
+    document.getElementById('viewQuotesBtn').onclick = showModal;
+    document.getElementById('closeModalBtn').onclick = () => document.getElementById('quotesModal').classList.remove('active');
+    document.getElementById('quotesModal').onclick = e => {
+        if (e.target === document.getElementById('quotesModal')) document.getElementById('quotesModal').classList.remove('active');
+    };
+    document.getElementById('searchFiltersBtn').onclick = searchWithFilters;
+    document.getElementById('clearFiltersBtn').onclick = clearFilters;
+    document.getElementById('searchProductInput').oninput = function() { autoResizeTextarea(this); };
+    
+    // 查询功能
+    document.getElementById('batchQueryBtn').onclick = function() {
+        const input = document.getElementById('searchProductInput').value;
+        if (!input.trim()) {
+            searchKeyword = '';
+            searchOrder = [];
+            renderTable();
+            updateFooter();
+            return;
+        }
+        searchKeyword = input.trim();
+        searchOrder = [];
+        displayMode = 'all';
+        renderTable();
+        updateFooter();
+    };
+    
+    document.getElementById('searchProductInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            document.getElementById('batchQueryBtn').click();
+        }
+    });
+    
+    // 同步按钮
+    document.getElementById('cloudSyncBtn').onclick = async function() {
+        const btn = this;
+        const originalText = btn.textContent;
+        btn.textContent = currentLang === 'zh' ? '⏳ 同步中...' : '⏳ Syncing...';
+        btn.disabled = true;
+        
+        try {
+            await syncToCloud();
+            await loadFromCloud();
+            renderTable();
+            updateFooter();
+            alert(currentLang === 'zh' ? '✅ 同步成功！' : '✅ Synced successfully!');
+        } catch(e) {
+            alert(currentLang === 'zh' ? '❌ 同步失败: ' + e.message : '❌ Sync failed: ' + e.message);
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    };
+    
+    // 运费
+    document.getElementById('shippingSelect').onchange = (e) => {
+        if (e.target.value === 'custom') {
+            handleCustomShippingDisplay(true, currentShippingCost);
+        } else {
+            handleCustomShippingDisplay(false);
+            currentShippingCost = parseFloat(e.target.value);
+            updateFooter();
+            autoSyncAfterChange();
+        }
+    };
+    
+    // 总箱数
+    const kitsInput = document.getElementById('kitsEditableInput');
+    kitsInput.addEventListener('change', function() {
+        isUpdatingKits = true;
+        let newTotal = parseInt(this.value) || 0;
+        if (newTotal < 0) newTotal = 0;
+        this.value = newTotal;
+        const sug = suggestShipping(newTotal);
+        if (document.getElementById('shippingSelect').value !== 'custom') {
+            document.getElementById('shippingSelect').value = String(sug);
+            currentShippingCost = sug;
+        }
+        updateFooter();
+        isUpdatingKits = false;
+        autoSyncAfterChange();
+    });
+    
+    // 列选择器
+    document.querySelectorAll('.column-selector input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const col = parseInt(this.dataset.col);
+            if (col === 0) return;
+            columnVisibility[col] = this.checked;
+            applyColumnVisibility();
+            autoSyncAfterChange();
+        });
+    });
+    
+    // 折叠
+    let collapsed = false;
+    document.getElementById('collapseHeader').onclick = () => {
+        collapsed = !collapsed;
+        const area = document.getElementById('collapsibleArea');
+        const icon = document.getElementById('collapseIcon');
+        if (collapsed) {
+            area.classList.add('collapsed');
+            icon.innerHTML = '▼';
+        } else {
+            area.classList.remove('collapsed');
+            icon.innerHTML = '▲';
+        }
+    };
+    
+    // 语言切换
+    document.getElementById('langToggle').onclick = () => {
+        const newLang = currentLang === 'zh' ? 'en' : 'zh';
+        applyLanguage(newLang);
+        autoSyncAfterChange();
+    };
+    
+    // 价格表选择
+    document.getElementById('priceTableSelect').onchange = () => {
+        autoSyncAfterChange();
+    };
+    
+    bindSelectAll();
+    applyLanguage(currentLang || 'zh');
+    autoResizeTextarea(document.getElementById('searchProductInput'));
+    renderTable();
+    updateFooter();
+    
+    console.log('✅ 灵岩报价系统启动完成');
+    console.log('📦 产品数:', products.length);
+    console.log('📋 报价单数:', quotations.length);
+    console.log('☁️ 连接状态:', isConnected ? '已连接' : '离线');
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
